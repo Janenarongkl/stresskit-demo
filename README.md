@@ -54,7 +54,7 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1     macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest -q                      # 23 tests
+pytest -q                      # 36 tests
 python scripts/demo.py         # the whole flow in one process, every HTTP call printed
 ```
 
@@ -112,6 +112,7 @@ src/stresskit_sim/   mock watch: calm, stressed and moving recordings
 scripts/demo.py      narrated end-to-end run
 scripts/export_openapi.py
 docs/PRD.md          one-page product brief and milestones
+docs/product/        backlog (user stories), traceability, Definition of Done, decision log
 docs/openapi.json    the API contract
 tests/               auth, upload flow, idempotency, tenant isolation, model
 ```
@@ -131,7 +132,7 @@ tests/               auth, upload flow, idempotency, tenant isolation, model
 
 - [x] 1. Layout, mock wearable, local API
 - [x] 2. API contract: auth, devices, uploads, results, errors, idempotency, OpenAPI
-- [ ] 3. SDK: offline buffer, chunked uploads, packaged release
-- [ ] 4. AWS storage: S3, DynamoDB, IAM
-- [ ] 5. AWS compute: API Gateway, Lambda, SQS + DLQ, SAM deploy
-- [ ] 6. Webhooks, CloudWatch dashboard and alarms, cost review
+- [ ] 3. SDK: offline buffer, retry tests, packaged release; firmware traceability
+- [ ] 4. AWS foundations: cost guardrails, SAM, S3, DynamoDB, IAM
+- [ ] 5. AWS compute: API Gateway, Lambda, SQS + DLQ
+- [ ] 6. Webhooks, CloudWatch dashboard and alarms

@@ -2,6 +2,7 @@
 
     python scripts/demo.py                                  # in-process, no server needed
     python scripts/demo.py --base-url http://127.0.0.1:8000 # against a running server
+    python scripts/demo.py --base-url ... --client a-id:a-secret --other-client b-id:b-secret
 
 Steps: get a token, register a watch, upload three recordings (calm, stressed, moving),
 read the results, then show a retry with the same Idempotency-Key, a call without a token,
@@ -67,10 +68,14 @@ def step(title: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base-url", help="Running API, e.g. http://127.0.0.1:8000")
+    parser.add_argument("--client", default=":".join(CLIENT_A), help="client_id:client_secret")
+    parser.add_argument(
+        "--other-client", default=":".join(CLIENT_B), help="A second tenant, for step 8"
+    )
     args = parser.parse_args()
     http = make_http(args.base_url)
     base = args.base_url or "http://testserver"
-    clinic_a = StressKitClient(base, *CLIENT_A, http=http)
+    clinic_a = StressKitClient(base, *args.client.split(":", 1), http=http)
     device_id = f"watch-{uuid.uuid4().hex[:6]}"
 
     step(f"1. Clinic A gets a token and registers {device_id}")
@@ -100,7 +105,7 @@ def main() -> None:
     http.get(f"/v1/devices/{device_id}")
 
     step("8. Clinic B asks for clinic A's device: 404, as if it does not exist")
-    clinic_b = StressKitClient(base, *CLIENT_B, http=http)
+    clinic_b = StressKitClient(base, *args.other_client.split(":", 1), http=http)
     try:
         clinic_b.get_device(device_id)
     except StressKitError as err:

@@ -1,0 +1,197 @@
+# StressKit demo, milestone 4: storage and permissions on AWS.
+#
+#   S3 bucket        raw recordings, private, encrypted, HTTPS only, deleted after 90 days
+#   DynamoDB table   devices, uploads, results and idempotency keys (one table, on-demand)
+#   ApiRole          what the API may do (milestone 5 gives it to the API Lambda)
+#   WorkerRole       what the worker may do (milestone 5 gives it to the worker Lambda)
+#
+# Everything here is pay-per-use: with no traffic it costs close to $0 (see docs/cost.md).
+# Deploy: docs/aws/deploy-m4.md.  Long-form intrinsics (Fn::Sub: ...) keep the file plain YAML.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: StressKit demo - storage (S3, DynamoDB) and least-privilege IAM roles (milestone 4)
+
+Parameters:
+  SsmPrefix:
+    Type: String
+    Default: /stresskit/demo
+    AllowedPattern: "^/[A-Za-z0-9/_-]+[A-Za-z0-9_-]$"
+    Description: SSM path holding <prefix>/jwt-secret and <prefix>/clients (SecureString)
+  RawRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days to keep raw recordings in S3 before they are deleted (decision D14)
+
+Resources:
+  RawBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # No BucketName: CloudFormation picks a unique one, so two deploys never collide.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-raw-recordings
+            Status: Enabled
+            ExpirationInDays:
+              Ref: RawRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      Tags:
+        - Key: project
+          Value: stresskit-demo
+
+  RawBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: RawBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyPlainHttp
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - Fn::GetAtt: [RawBucket, Arn]
+              - Fn::Sub: "${RawBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: project
+          Value: stresskit-demo
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: StressKit API - read/write its table, hand out upload links, read its secrets
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: stresskit-api
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Table
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                Resource:
+                  Fn::GetAtt: [Table, Arn]
+              # Signs the phone's upload link. The API never reads recordings.
+              - Sid: SignUploadLinks
+                Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  Fn::Sub: "${RawBucket.Arn}/*"
+              # "Has the file arrived?" is a listing, so no s3:GetObject is needed.
+              - Sid: CheckFileArrived
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource:
+                  Fn::GetAtt: [RawBucket, Arn]
+              - Sid: Secrets
+                Effect: Allow
+                Action: ssm:GetParameters
+                Resource:
+                  Fn::Sub: "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/*"
+      Tags:
+        - Key: project
+          Value: stresskit-demo
+
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: StressKit worker - read recordings, write results
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: stresskit-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Table
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  Fn::GetAtt: [Table, Arn]
+              - Sid: ReadRecordings
+                Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  Fn::Sub: "${RawBucket.Arn}/*"
+      Tags:
+        - Key: project
+          Value: stresskit-demo
+
+Outputs:
+  BucketName:
+    Description: Set as STRESSKIT_BUCKET
+    Value:
+      Ref: RawBucket
+  TableName:
+    Description: Set as STRESSKIT_TABLE
+    Value:
+      Ref: Table
+  ApiRoleArn:
+    Value:
+      Fn::GetAtt: [ApiRole, Arn]
+  WorkerRoleArn:
+    Value:
+      Fn::GetAtt: [WorkerRole, Arn]

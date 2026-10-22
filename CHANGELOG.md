@@ -2,6 +2,17 @@
 
 Versions of the SDK (`stresskit-sdk`) and the API contract. The SDK follows [semantic versioning](https://semver.org/): a breaking change bumps the major version.
 
+## SDK 0.4.0 and API 0.4.0 (milestone 4)
+
+### Added
+- The API can run on AWS storage: `STRESSKIT_BACKEND=aws` keeps devices, uploads, results and idempotency keys in DynamoDB and raw recordings in S3. Phones upload straight to S3 with a pre-signed URL. The API contract does not change.
+- Secrets can come from SSM Parameter Store (`STRESSKIT_SSM_PREFIX`).
+- `infra/template.yaml`: the S3 bucket, DynamoDB table and least-privilege IAM roles, deployed with `sam deploy` (see `docs/aws/deploy-m4.md`).
+- SDK: `upload_http` lets the file upload use its own HTTP client (the upload URL points at S3, not the API). A successful upload with an empty response body is handled.
+
+### Changed
+- The worker marks an upload `failed` when its file is over the size limit. An S3 pre-signed URL cannot cap the size the way the local upload route does.
+
 ## SDK 0.3.0 and API (milestone 3)
 
 ### Added

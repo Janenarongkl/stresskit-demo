@@ -15,5 +15,5 @@ turning error responses into exceptions.
 from .client import StressKitClient, StressKitError
 from .offline import OfflineQueue, OfflineQueueFull
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = ["OfflineQueue", "OfflineQueueFull", "StressKitClient", "StressKitError"]

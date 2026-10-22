@@ -45,6 +45,8 @@ A real stress model (the mock uses heart rate only), firmware and Bluetooth, mob
 
 ## Milestones
 
+User stories, acceptance criteria and the requirement-to-test matrix are in [`docs/product/`](product/README.md).
+
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Repo layout, mock wearable, local API running | Done |

@@ -112,6 +112,7 @@ src/stresskit_sim/   mock watch: calm, stressed and moving recordings
 scripts/demo.py      narrated end-to-end run
 scripts/export_openapi.py
 docs/PRD.md          one-page product brief and milestones
+docs/product/        backlog (user stories), traceability, Definition of Done, decision log
 docs/openapi.json    the API contract
 tests/               auth, upload flow, idempotency, tenant isolation, model
 ```

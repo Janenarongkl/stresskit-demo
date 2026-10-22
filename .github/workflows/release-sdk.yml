@@ -1,0 +1,32 @@
+name: Release SDK
+
+# Push a tag like sdk-v0.3.0 to publish that SDK version as a GitHub release with its wheel.
+on:
+  push:
+    tags: ["sdk-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tag must match sdk/pyproject.toml
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('sdk/pyproject.toml','rb'))['project']['version'])")
+          test "${GITHUB_REF_NAME}" = "sdk-v${version}" || { echo "tag ${GITHUB_REF_NAME} != sdk-v${version}"; exit 1; }
+      - name: CHANGELOG.md must have an entry for this version
+        run: |
+          version="${GITHUB_REF_NAME#sdk-v}"
+          grep -qF "## SDK ${version} " CHANGELOG.md || { echo "CHANGELOG.md has no '## SDK ${version}' entry"; exit 1; }
+      - run: pip wheel ./sdk --no-deps -w dist
+      - run: python scripts/check_sdk_wheel.py dist
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/*.whl --title "SDK ${GITHUB_REF_NAME#sdk-v}" --notes "See CHANGELOG.md."

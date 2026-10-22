@@ -51,7 +51,7 @@ User stories, acceptance criteria and the requirement-to-test matrix are in [`do
 |---|---|---|
 | 1 | Repo layout, mock wearable, local API running | Done |
 | 2 | API contract: auth, devices, uploads, results, errors, idempotency, OpenAPI | Done |
-| 3 | SDK: offline buffer, retry tests, packaged release; firmware traceability | Next |
+| 3 | SDK: offline buffer, retry tests, packaged release; firmware traceability | Done |
 | 4 | AWS foundations: cost guardrails, SAM template, S3 pre-signed URLs, DynamoDB tables, IAM roles | |
 | 5 | AWS compute: API Gateway + Lambda, SQS queue + worker Lambda + DLQ | |
 | 6 | Webhooks, CloudWatch dashboard and alarms | |

@@ -1,0 +1,23 @@
+# Builds the SDK on its own, so customers install only the client and httpx, not the server.
+#   pip wheel ./sdk -w dist      (or: python -m build sdk)
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stresskit-sdk"
+version = "0.3.0"
+description = "Python SDK for the StressKit demo API: token handling, retry-safe uploads, offline queue."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.27"]
+license = { text = "MIT" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["stresskit_sdk"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../src/stresskit_sdk" = "stresskit_sdk"
+
+[tool.hatch.build.targets.sdist.force-include]
+"../src/stresskit_sdk" = "stresskit_sdk"

@@ -5,6 +5,7 @@ Endpoints (all under /v1, all need a bearer token except /oauth/token and the si
     POST /v1/oauth/token                 client credentials -> JWT
     POST /v1/devices                     register a wearable
     GET  /v1/devices/{device_id}
+    PATCH /v1/devices/{device_id}         record a firmware upgrade
     POST /v1/uploads                     ask for a pre-signed upload URL (Idempotency-Key)
     PUT  /v1/blobs/{key}?signature=...   upload the raw file (stands in for S3)
     POST /v1/uploads/{upload_id}/complete   "file is there, please process" -> 202
@@ -30,6 +31,7 @@ from .models import (
     ID_PATTERN,
     Device,
     DeviceCreate,
+    DeviceUpdate,
     Problem,
     ResultsPage,
     TokenResponse,
@@ -135,6 +137,37 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(404, f"Device {device_id} not found.")
         return device
 
+    @app.patch("/v1/devices/{device_id}", response_model=Device, tags=["devices"], responses=ERRORS)
+    def update_device(device_id: str, body: DeviceUpdate, who: AuthDep, store: StoreDep) -> Device:
+        """Record a firmware upgrade. Uploads created earlier keep the version they recorded."""
+        device = store.get_device(who.tenant_id, device_id)
+        if device is None:
+            raise HTTPException(404, f"Device {device_id} not found.")
+        device = device.model_copy(
+            update={"firmware_version": body.firmware_version, "updated_at": datetime.now(UTC)}
+        )
+        store.update_device(who.tenant_id, device)
+        return device
+
+    def ticket_for(upload: Upload, tenant_id: str, request: Request, blobs: LocalBlobStore) -> dict:
+        """The upload plus a pre-signed link, which is only useful while no file has arrived."""
+        if upload.status != UploadStatus.pending_upload:
+            return upload.model_dump(mode="json") | {
+                "upload_url": None,
+                "upload_url_expires_at": None,
+            }
+        base_url = settings.public_base_url or str(request.base_url)
+        url, expires = blobs.presign_put(
+            blob_key(tenant_id, upload.device_id, upload.upload_id),
+            base_url,
+            settings.upload_url_ttl_s,
+        )
+        return UploadTicket(
+            **upload.model_dump(),
+            upload_url=url,
+            upload_url_expires_at=datetime.fromtimestamp(expires, UTC),
+        ).model_dump(mode="json")
+
     @app.post(
         "/v1/uploads",
         status_code=201,
@@ -169,11 +202,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             if seen is not None:
                 if seen[0] != fingerprint:
                     raise HTTPException(409, "Idempotency-Key was used with a different body.")
+                # Same upload as the first time. If the file was never sent, issue a fresh link:
+                # a retry from an offline queue may come long after the first link expired.
+                upload = store.get_upload(who.tenant_id, seen[1]["upload_id"])
+                replay = ticket_for(upload, who.tenant_id, request, blobs) if upload else seen[1]
                 return JSONResponse(
-                    seen[1], status_code=201, headers={"Idempotent-Replayed": "true"}
+                    replay, status_code=201, headers={"Idempotent-Replayed": "true"}
                 )
 
-        if store.get_device(who.tenant_id, body.device_id) is None:
+        device = store.get_device(who.tenant_id, body.device_id)
+        if device is None:
             raise HTTPException(404, f"Device {body.device_id} not found.")
 
         upload_id = "upl_" + uuid.uuid4().hex[:20]
@@ -185,18 +223,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             sample_rate_hz=body.sample_rate_hz,
             duration_s=body.duration_s,
             created_at=datetime.now(UTC),
+            firmware_version=device.firmware_version,
         )
         store.put_upload(who.tenant_id, upload)
-        base_url = settings.public_base_url or str(request.base_url)
-        url, expires = blobs.presign_put(
-            blob_key(who.tenant_id, body.device_id, upload_id), base_url, settings.upload_url_ttl_s
-        )
-        ticket = UploadTicket(
-            **upload.model_dump(),
-            upload_url=url,
-            upload_url_expires_at=datetime.fromtimestamp(expires, UTC),
-        )
-        result = ticket.model_dump(mode="json")
+        result = ticket_for(upload, who.tenant_id, request, blobs)
         if idempotency_key:
             store.put_idempotent(who.tenant_id, idempotency_key, fingerprint, result)
         return result

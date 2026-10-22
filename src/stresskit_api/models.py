@@ -25,6 +25,11 @@ class DeviceCreate(BaseModel):
 
 class Device(DeviceCreate):
     created_at: datetime
+    updated_at: datetime | None = None
+
+
+class DeviceUpdate(BaseModel):
+    firmware_version: str = Field(max_length=32, examples=["1.5.0"])
 
 
 class UploadCreate(BaseModel):
@@ -50,13 +55,19 @@ class Upload(BaseModel):
     sample_rate_hz: int
     duration_s: int
     created_at: datetime
+    firmware_version: str | None = Field(
+        default=None, description="Device firmware when the upload was created, for traceability."
+    )
     window_count: int | None = None
     error: str | None = None
 
 
 class UploadTicket(Upload):
-    upload_url: str = Field(description="Pre-signed PUT URL. No Authorization header needed.")
-    upload_url_expires_at: datetime
+    upload_url: str | None = Field(
+        description="Pre-signed PUT URL. No Authorization header needed. "
+        "Null on a replay once the file has arrived."
+    )
+    upload_url_expires_at: datetime | None
 
 
 class StressLabel(StrEnum):

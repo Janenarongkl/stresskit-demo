@@ -54,7 +54,7 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1     macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest -q                      # 36 tests
+pytest -q                      # 56 tests
 python scripts/demo.py         # the whole flow in one process, every HTTP call printed
 ```
 
@@ -77,6 +77,22 @@ Demo output (step 5):
 14:25  na               --      quality=motion
 ```
 
+## Use the SDK offline
+
+Give the client an `OfflineQueue` and a recording made without a network is kept on disk instead of failing. Send the queue when the phone is back online:
+
+```python
+from stresskit_sdk import OfflineQueue, StressKitClient
+
+client = StressKitClient(
+    base_url, "demo-clinic-a", "demo-secret-a", offline_queue=OfflineQueue(".stresskit-queue")
+)
+client.upload_recording("watch-001", recording, started_at)  # {"status": "queued", ...} if offline
+client.drain_queue()  # oldest first; same Idempotency-Key as when queued, so never a duplicate
+```
+
+The SDK is also built as its own wheel (`pip wheel ./sdk`) that depends only on `httpx`. Pushing a tag such as `sdk-v0.3.0` publishes it as a GitHub release; see [`CHANGELOG.md`](CHANGELOG.md).
+
 ## API contract (v1)
 
 Full contract: [`docs/openapi.json`](docs/openapi.json) (also served at `/docs`). A test fails if it drifts from the code.
@@ -86,6 +102,7 @@ Full contract: [`docs/openapi.json`](docs/openapi.json) (also served at `/docs`)
 | `POST /v1/oauth/token` | OAuth 2.0 client credentials, form-encoded. Returns a JWT | 200 |
 | `POST /v1/devices` | Register a device for your tenant | 201 |
 | `GET /v1/devices/{device_id}` | Read a device | 200 |
+| `PATCH /v1/devices/{device_id}` | Record a firmware upgrade; later uploads record the new version | 200 |
 | `POST /v1/uploads` | Create an upload and get a pre-signed URL. Send `Idempotency-Key` | 201 |
 | `PUT /v1/blobs/{key}?expires=&signature=` | Upload the file (local stand-in for S3) | 200 |
 | `POST /v1/uploads/{id}/complete` | Start processing | 202 |
@@ -96,7 +113,7 @@ Design rules the contract follows:
 
 - **Tenant from the token, never the body.** Another tenant's ids return 404, not 403, so ids leak nothing.
 - **Big files bypass the API** through short-lived pre-signed URLs.
-- **Retries are safe.** Same `Idempotency-Key` and body returns the same upload (`Idempotent-Replayed: true`); same key with a different body is 409. `/complete` can be called twice.
+- **Retries are safe.** Same `Idempotency-Key` and body returns the same upload (`Idempotent-Replayed: true`); same key with a different body is 409. While the file has not arrived, a replay carries a fresh upload link, so a recording queued offline for hours can still be sent. `/complete` can be called twice.
 - **Slow work is async.** `/complete` returns 202 and the client polls (webhooks in milestone 6).
 - **Errors are `application/problem+json`** with `type`, `title`, `status`, `detail`.
 - **Versioned path** (`/v1`), so a breaking change becomes `/v2` while v1 keeps working.
@@ -107,10 +124,12 @@ Recording file format (`PUT` body): `{"sample_rate_hz": 25, "ppg": [..], "acc": 
 
 ```
 src/stresskit_api/   the cloud side: routes, auth, storage, worker, mock model
-src/stresskit_sdk/   the customer SDK (token refresh, upload, retries, errors)
+src/stresskit_sdk/   the customer SDK (token refresh, upload, retries, errors, offline queue)
+sdk/                 packaging for the SDK on its own (pyproject.toml, README)
 src/stresskit_sim/   mock watch: calm, stressed and moving recordings
 scripts/demo.py      narrated end-to-end run
 scripts/export_openapi.py
+scripts/check_sdk_wheel.py   installs the SDK wheel in a clean venv and checks it
 docs/PRD.md          one-page product brief and milestones
 docs/product/        backlog (user stories), traceability, Definition of Done, decision log
 docs/openapi.json    the API contract
@@ -132,7 +151,7 @@ tests/               auth, upload flow, idempotency, tenant isolation, model
 
 - [x] 1. Layout, mock wearable, local API
 - [x] 2. API contract: auth, devices, uploads, results, errors, idempotency, OpenAPI
-- [ ] 3. SDK: offline buffer, retry tests, packaged release; firmware traceability
+- [x] 3. SDK: offline buffer, retry tests, packaged release; firmware traceability
 - [ ] 4. AWS foundations: cost guardrails, SAM, S3, DynamoDB, IAM
 - [ ] 5. AWS compute: API Gateway, Lambda, SQS + DLQ
 - [ ] 6. Webhooks, CloudWatch dashboard and alarms

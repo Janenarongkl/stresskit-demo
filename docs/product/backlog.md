@@ -28,11 +28,11 @@ Acceptance criteria use Given / When / Then. Every criterion of a Done story has
 | Epic | Goal | Milestones | Status |
 |---|---|---|---|
 | E1 Customer access | Each customer signs in as a machine and only ever acts as their own tenant | 2 | Done |
-| E2 Device registry | Watches are registered so results can be traced to hardware and firmware | 2, 3 | Partly done |
+| E2 Device registry | Watches are registered so results can be traced to hardware and firmware | 2, 3 | Done |
 | E3 Upload recordings | Large recordings reach storage safely over unreliable phone networks | 2 | Done |
 | E4 Processing and results | Each minute gets an honest label with quality and model version | 2 | Done |
 | E5 Developer experience | A developer can integrate in a day from the SDK, docs and errors | 2 | Done |
-| E6 SDK release and robustness | The SDK installs like any package and survives offline periods | 3 | Planned |
+| E6 SDK release and robustness | The SDK installs like any package and survives offline periods | 3 | Done |
 | E7 Run on AWS | Same contract, serverless in ap-southeast-7, with a capped cost | 4, 5 | Planned |
 | E8 Notify and operate | Customers hear when results are ready; we see failures before customers do | 6 | Planned |
 
@@ -41,13 +41,13 @@ Acceptance criteria use Given / When / Then. Every criterion of a Done story has
 | Milestone | Stories, in order | Points |
 |---|---|---|
 | 1–2 Local API and contract | SK-1 to SK-4, SK-6 to SK-16 | 39, done |
-| 3 SDK and traceability | SK-18, SK-20, SK-5, SK-17 | 12 |
+| 3 SDK and traceability | SK-18, SK-20, SK-5, SK-17 | 12, done |
 | 4 AWS foundations | SK-29, SK-26, SK-21, SK-22, SK-23 | 12 |
 | 5 AWS compute | SK-24, SK-25 | 10 |
 | 6 Notify and operate | SK-28, SK-27 | 8 |
 | Later | SK-19 (8), SK-30 to SK-34 (not sized) | |
 
-Remaining planned work: 42 points. A comfortable milestone for one person is 8 to 13 points.
+Remaining planned work: 30 points. A comfortable milestone for one person is 8 to 13 points.
 
 ### Milestone 3 ranking (WSJF)
 
@@ -135,12 +135,15 @@ Evidence: `test_duplicate_device_is_409`, `test_bad_device_id_is_422_problem`, `
 ### SK-5 Trace results to firmware
 **As a** product owner, **I want** each upload to record the firmware version the watch had at the time, and to update a device's firmware version after an upgrade, **so that** when a result is questioned we know which firmware produced the data.
 
-Feature · Should · 3 points · M3 · Planned · Depends on: SK-4
+Feature · Should · 3 points · M3 · Done · Depends on: SK-4
 
 - **Given** a registered device, **when** the app sends `PATCH /v1/devices/{id}` with a new `firmware_version`, **then** `200` and the device shows the new version.
 - **Given** a new upload, **when** it is created, **then** it stores the device's current `firmware_version`, and `GET /v1/uploads/{id}` returns it.
 - **Given** a device upgraded after an upload, **when** that older upload is read, **then** it still shows the old firmware version.
 - **Given** any result, **when** it is read, **then** its `upload_id` leads to the firmware version (no need to copy it onto every result).
+- **Given** another tenant's or an unknown device, **when** it is patched, **then** `404` and nothing changes.
+
+Evidence: `test_patch_records_a_firmware_upgrade`, `test_uploads_keep_the_firmware_they_were_recorded_with`, `test_result_leads_to_firmware_through_its_upload`, `test_patch_unknown_or_other_tenants_device_is_404`
 
 ---
 
@@ -291,26 +294,32 @@ Evidence: CI workflow `.github/workflows/ci.yml`. Manual check: run on Windows o
 ### SK-18 Prove retries never duplicate
 **As an** operations engineer, **I need** tests that simulate dropped replies and rate limits, **so that** we know SDK retries never create duplicates or hammer the API.
 
-Enabler · Should · 2 points · M3 · Planned · Depends on: SK-15
+Enabler · Should · 2 points · M3 · Done · Depends on: SK-15
 
 - **Given** the reply to `POST /v1/uploads` is lost after the server created the upload, **when** the SDK retries, **then** exactly one upload exists and the SDK returns it.
 - **Given** a network error on `/complete`, **when** the SDK retries, **then** processing is queued once.
 - **Given** a `429` with `Retry-After: 2`, **when** the SDK retries, **then** it waits at least 2 seconds first.
 - **Given** a `4xx` other than `429`, **when** the SDK receives it, **then** it does not retry.
+- **Given** a `401` on a token the SDK thought was still valid, **when** it is received, **then** the SDK gets one fresh token and tries once more.
+
+Evidence: `test_lost_reply_to_create_upload_gives_one_upload`, `test_network_error_on_complete_queues_processing_once`, `test_retry_after_is_respected`, `test_client_errors_are_not_retried`, `test_401_on_a_cached_token_gets_one_fresh_token`
 
 ### SK-20 Install the SDK as a package
 **As a** customer developer, **I want** to `pip install` a versioned SDK, **so that** I can pin and upgrade it like any other dependency.
 
-Feature · Should · 2 points · M3 · Planned · Depends on: SK-15
+Feature · Should · 2 points · M3 · Done · Depends on: SK-15
 
-- **Given** a release tag such as `sdk-v0.1.0`, **when** CI runs, **then** it builds a wheel for the SDK alone and attaches it to a GitHub release.
+- **Given** a release tag such as `sdk-v0.3.0`, **when** CI runs, **then** it builds a wheel for the SDK alone and attaches it to a GitHub release.
 - **Given** the wheel, **when** it is installed in a clean environment, **then** `from stresskit_sdk import StressKitClient` works without the server's dependencies.
 - **Given** a new version, **when** it is released, **then** the version follows semantic versioning and `CHANGELOG.md` lists its changes.
+- **Given** a tag that does not match the version in `sdk/pyproject.toml`, **when** the release workflow runs, **then** it stops without publishing.
+
+Evidence: CI job `sdk-package` runs `scripts/check_sdk_wheel.py` (clean install, version check, no server dependencies); `test_sdk_version_matches_its_package_metadata`, `test_changelog_has_an_entry_for_this_sdk_version`; the release workflow also refuses a tag with no CHANGELOG entry. Manual check: after merging, push tag `sdk-v0.3.0` and confirm the release and its wheel appear on GitHub.
 
 ### SK-17 Keep recordings while offline
 **As a** wearer, **I want** recordings made without a network to upload later on their own, **so that** no session is lost on a flight or in a basement.
 
-Feature · Must · 5 points · M3 · Planned · Depends on: SK-15, SK-18
+Feature · Must · 5 points · M3 · Done · Depends on: SK-15, SK-18
 
 - **Given** no network, **when** the app uploads a recording, **then** the SDK saves it to a local queue and returns a pending reference instead of failing.
 - **Given** queued recordings, **when** the network returns, **then** they upload oldest first, each with the `Idempotency-Key` it was given when queued.
@@ -318,6 +327,10 @@ Feature · Must · 5 points · M3 · Planned · Depends on: SK-15, SK-18
 - **Given** the queue has reached its size limit (default 50 MB), **when** another recording is added, **then** the SDK raises a clear error and nothing already queued is dropped.
 - **Given** the token expired while offline, **when** the queue drains, **then** the SDK gets a new token first and no upload fails with `401`.
 - **Given** an upload link expired while queued, **when** the queue drains, **then** the SDK asks for a new link with the same `Idempotency-Key` and succeeds.
+- **Given** a queued recording the server refuses for good (for example, an unknown device), **when** the queue drains, **then** it is set aside in `failed/` with the reason and the rest still upload.
+- **Given** the client secret is wrong or was rotated, **when** the queue drains, **then** it stops, keeps every recording queued and says why; nothing goes to `failed/`.
+
+Evidence: `test_offline_upload_is_queued_and_sent_when_back_online`, `test_queue_drains_oldest_first`, `test_queue_survives_an_app_restart`, `test_full_queue_raises_and_keeps_what_it_has`, `test_token_expired_while_offline_does_not_fail_the_drain`, `test_expired_upload_link_is_renewed_with_the_same_key`, `test_refused_recording_is_set_aside_and_the_rest_continue`, `test_bad_secret_keeps_the_whole_queue`
 
 ---
 

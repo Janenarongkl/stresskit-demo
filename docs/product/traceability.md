@@ -10,9 +10,9 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 |---|---|---|---|---|---|
 | R1 | Every call is authenticated per tenant | SK-1, SK-2, SK-3, SK-23 | `test_auth.py` (6 tests), `test_tenant_isolation` | Run `pytest` against the AWS URL; call with Clinic B's token for Clinic A's device and expect 404 | |
 | R2 | Large files never pass through the API | SK-6, SK-21 | `test_upload_url_is_for_one_file_and_expires_in_15_minutes`, `test_tampered_or_expired_upload_url_is_403`, `test_file_over_size_limit_is_413` | `upload_url` host is `*.s3.ap-southeast-7.amazonaws.com`; API Gateway logs show no request bodies over 10 KB | |
-| R3 | A retried upload never creates a duplicate | SK-7, SK-8, SK-15, SK-18, SK-22 | `test_idempotency_key_replays_same_upload`, `test_idempotency_key_with_different_body_is_409`, `test_complete_twice_queues_processing_once`, `test_sdk_retries_server_errors_then_succeeds` | Same tests against AWS; DynamoDB has one `UPLOAD#` item per key | |
+| R3 | A retried upload never creates a duplicate | SK-7, SK-8, SK-15, SK-18, SK-22 | `test_idempotency_key_replays_same_upload`, `test_idempotency_key_with_different_body_is_409`, `test_complete_twice_queues_processing_once`, `test_sdk_retries_server_errors_then_succeeds`, `test_lost_reply_to_create_upload_gives_one_upload`, `test_network_error_on_complete_queues_processing_once` | Same tests against AWS; DynamoDB has one `UPLOAD#` item per key | |
 | R4 | Processing is async; the API answers in under a second | SK-8, SK-11, SK-24, SK-25 | `/complete` returns 202 before processing (`test_end_to_end_with_sdk`) | CloudWatch: API p95 under 1 s; `/complete` → `processed` p95 under 30 s | |
-| R5 | Each result carries signal quality and model version (firmware via the upload, SK-5) | SK-5, SK-9, SK-10, SK-12 | `test_end_to_end_with_sdk`, `test_flat_ppg_is_poor_signal`; firmware: planned in M3 | Read results from DynamoDB; every item has both fields | |
+| R5 | Each result carries signal quality and model version (firmware via the upload, SK-5) | SK-5, SK-9, SK-10, SK-12 | `test_end_to_end_with_sdk`, `test_flat_ppg_is_poor_signal`, `test_uploads_keep_the_firmware_they_were_recorded_with` | Read results from DynamoDB; every item has both fields | |
 | R6 | Errors are machine-readable (RFC 9457) | SK-13 | `test_wrong_secret_is_401_problem_json`, `test_bad_device_id_is_422_problem`, `test_file_over_size_limit_is_413`, `test_sdk_raises_problem_details` | Check that API Gateway's own errors (throttling `429`, missing route `404`) are also problem+json, or document the exception | |
 | R7 | Versioned contract published as OpenAPI | SK-14 | `test_committed_contract_matches_code` | `GET <aws>/openapi.json` equals `docs/openapi.json` | |
 
@@ -64,5 +64,23 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | `test_sdk_reuses_token_and_refreshes_before_expiry` | SK-15 |
 | `test_sdk_retries_server_errors_then_succeeds` | SK-15 |
 | `test_sdk_gives_up_after_three_retries` | SK-15 |
+| `test_patch_records_a_firmware_upgrade` | SK-5 |
+| `test_uploads_keep_the_firmware_they_were_recorded_with` | SK-5 |
+| `test_patch_unknown_or_other_tenants_device_is_404` | SK-5 |
+| `test_result_leads_to_firmware_through_its_upload` | SK-5 |
+| `test_lost_reply_to_create_upload_gives_one_upload` | SK-18 |
+| `test_network_error_on_complete_queues_processing_once` | SK-18 |
+| `test_retry_after_is_respected` | SK-18 |
+| `test_client_errors_are_not_retried` | SK-18 |
+| `test_401_on_a_cached_token_gets_one_fresh_token` | SK-18 |
+| `test_offline_upload_is_queued_and_sent_when_back_online` | SK-17 |
+| `test_queue_drains_oldest_first` | SK-17 |
+| `test_queue_survives_an_app_restart` | SK-17 |
+| `test_full_queue_raises_and_keeps_what_it_has` | SK-17 |
+| `test_token_expired_while_offline_does_not_fail_the_drain` | SK-17 |
+| `test_expired_upload_link_is_renewed_with_the_same_key` | SK-17 |
+| `test_refused_recording_is_set_aside_and_the_rest_continue` | SK-17 |
+| `test_replay_after_the_file_arrived_has_no_link` | SK-7, SK-17 |
+| `test_sdk_version_matches_its_package_metadata` | SK-20 |
 
-36 test cases in total, counting each parameter. Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16). NFR1 to NFR3 can only be measured once deployed.
+54 test cases in total, counting each parameter. Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16, SK-20). NFR1 to NFR3 can only be measured once deployed.

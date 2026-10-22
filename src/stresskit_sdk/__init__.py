@@ -8,9 +8,12 @@
     windows = client.get_results("watch-001")
 
 The SDK hides the protocol: token caching and refresh, the three-step upload, retries with
-the same Idempotency-Key, and turning error responses into exceptions.
+the same Idempotency-Key, an offline queue for recordings made without a network, and
+turning error responses into exceptions.
 """
 
 from .client import StressKitClient, StressKitError
+from .offline import OfflineQueue, OfflineQueueFull
 
-__all__ = ["StressKitClient", "StressKitError"]
+__version__ = "0.3.0"
+__all__ = ["OfflineQueue", "OfflineQueueFull", "StressKitClient", "StressKitError"]

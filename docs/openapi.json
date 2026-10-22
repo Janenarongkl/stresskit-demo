@@ -222,6 +222,82 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Update Device",
+        "description": "Record a firmware upgrade. Uploads created earlier keep the version they recorded.",
+        "operationId": "update_device_v1_devices__device_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found for this tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request body or query is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/uploads": {
@@ -687,6 +763,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           }
         },
         "type": "object",
@@ -732,6 +820,23 @@
           "firmware_version"
         ],
         "title": "DeviceCreate"
+      },
+      "DeviceUpdate": {
+        "properties": {
+          "firmware_version": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Firmware Version",
+            "examples": [
+              "1.5.0"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "firmware_version"
+        ],
+        "title": "DeviceUpdate"
       },
       "HTTPValidationError": {
         "properties": {
@@ -866,6 +971,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version",
+            "description": "Device firmware when the upload was created, for traceability."
+          },
           "window_count": {
             "anyOf": [
               {
@@ -987,6 +1104,18 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version",
+            "description": "Device firmware when the upload was created, for traceability."
+          },
           "window_count": {
             "anyOf": [
               {
@@ -1010,13 +1139,27 @@
             "title": "Error"
           },
           "upload_url": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Upload Url",
-            "description": "Pre-signed PUT URL. No Authorization header needed."
+            "description": "Pre-signed PUT URL. No Authorization header needed. Null on a replay once the file has arrived."
           },
           "upload_url_expires_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Upload Url Expires At"
           }
         },

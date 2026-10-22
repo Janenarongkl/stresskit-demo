@@ -39,7 +39,7 @@ def test_bucket_is_private_encrypted_and_https_only(resources):
 def test_raw_recordings_expire(resources):
     rule = resources["RawBucket"]["Properties"]["LifecycleConfiguration"]["Rules"][0]
     assert rule["Status"] == "Enabled" and rule["ExpirationInDays"] == {"Ref": "RawRetentionDays"}
-    # D14: files are ~100 KB, under S3's 128 KB minimum for cheaper tiers, so no transitions.
+    # D15: files are ~100 KB, under S3's 128 KB minimum for cheaper tiers, so no transitions.
     assert "Transitions" not in rule
 
 

@@ -82,8 +82,10 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | `test_token_expired_while_offline_does_not_fail_the_drain` | SK-17 |
 | `test_expired_upload_link_is_renewed_with_the_same_key` | SK-17 |
 | `test_refused_recording_is_set_aside_and_the_rest_continue` | SK-17 |
+| `test_bad_secret_keeps_the_whole_queue` | SK-17 |
 | `test_replay_after_the_file_arrived_has_no_link` | SK-7, SK-17 |
 | `test_sdk_version_matches_its_package_metadata` | SK-20 |
+| `test_changelog_has_an_entry_for_this_sdk_version` | SK-20 |
 | `test_sdk_end_to_end_on_s3_and_dynamodb` | SK-21, SK-22 |
 | `test_upload_link_is_s3_scoped_to_one_file_and_short_lived` | SK-21 |
 | `test_complete_before_the_file_is_in_s3_is_409` | SK-21, SK-8 |

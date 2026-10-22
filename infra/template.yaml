@@ -21,7 +21,7 @@ Parameters:
     Type: Number
     Default: 90
     MinValue: 1
-    Description: Days to keep raw recordings in S3 before they are deleted (decision D14)
+    Description: Days to keep raw recordings in S3 before they are deleted (decision D15)
 
 Resources:
   RawBucket:

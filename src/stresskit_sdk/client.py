@@ -11,6 +11,9 @@ import httpx
 from .offline import OfflineQueue
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+# While draining the queue these stop the drain and keep the recording queued: a bad or
+# rotated secret (401) or a refused link (403) is fixed by the customer, not by giving up.
+KEEP_QUEUED_STATUSES = RETRY_STATUSES | {401, 403}
 MAX_RETRY_AFTER_S = 60
 
 
@@ -187,27 +190,32 @@ class StressKitClient:
             return {"status": "queued", "queue_id": self.offline_queue.add(item)}
 
     def drain_queue(self) -> dict:
-        """Send queued recordings, oldest first. Stops at the first network failure.
+        """Send queued recordings, oldest first.
 
-        Recordings the server refuses for good (for example, an unknown device) are set aside
-        in the queue's failed/ folder so they don't block the rest.
+        Stops at the first network failure, server error or authentication failure, and keeps
+        the rest queued; "stopped" in the result says why. Only recordings the server refuses
+        for good (for example, an unknown device) are set aside in failed/, so they don't
+        block the rest.
         """
         if self.offline_queue is None:
             raise ValueError("This client has no offline queue.")
-        sent, failed = [], []
+        sent, failed, stopped = [], [], None
         for queue_id, item in self.offline_queue.items():
             try:
                 sent.append(self._send(item))
-            except httpx.TransportError:
+            except httpx.TransportError as exc:
+                stopped = f"network: {exc}"
                 break
             except StressKitError as exc:
-                if exc.status in RETRY_STATUSES:
+                if exc.status in KEEP_QUEUED_STATUSES:
+                    stopped = str(exc)
                     break
                 self.offline_queue.set_aside(queue_id, str(exc))
                 failed.append({"queue_id": queue_id, "error": str(exc)})
                 continue
             self.offline_queue.remove(queue_id)
-        return {"sent": sent, "failed": failed, "remaining": len(self.offline_queue)}
+        remaining = len(self.offline_queue)
+        return {"sent": sent, "failed": failed, "remaining": remaining, "stopped": stopped}
 
     def _send(self, item: dict) -> dict:
         def ticket() -> dict:

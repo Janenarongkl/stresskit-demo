@@ -20,6 +20,10 @@ jobs:
         run: |
           version=$(python -c "import tomllib; print(tomllib.load(open('sdk/pyproject.toml','rb'))['project']['version'])")
           test "${GITHUB_REF_NAME}" = "sdk-v${version}" || { echo "tag ${GITHUB_REF_NAME} != sdk-v${version}"; exit 1; }
+      - name: CHANGELOG.md must have an entry for this version
+        run: |
+          version="${GITHUB_REF_NAME#sdk-v}"
+          grep -qF "## SDK ${version} " CHANGELOG.md || { echo "CHANGELOG.md has no '## SDK ${version}' entry"; exit 1; }
       - run: pip wheel ./sdk --no-deps -w dist
       - run: python scripts/check_sdk_wheel.py dist
       - name: Publish the release

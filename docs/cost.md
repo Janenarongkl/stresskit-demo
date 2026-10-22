@@ -7,7 +7,7 @@ An estimate made before the first deploy, so the bill is never a surprise. Every
 | | Value | Why |
 |---|---|---|
 | One upload | a 2-minute recording, about 105 KB | 25 Hz PPG + 3-axis accelerometer as JSON (`stresskit_sim`) |
-| Raw files kept | 90 days, then deleted (decision D14) | No storage-class change: files under 128 KB are billed as 128 KB in the cheaper tiers, so moving them would cost more |
+| Raw files kept | 90 days, then deleted (decision D15) | No storage-class change: files under 128 KB are billed as 128 KB in the cheaper tiers, so moving them would cost more |
 | API calls per upload | about 8 | token, create upload, complete, about 3 status polls, results |
 | DynamoDB per upload | about 6 writes and 10 reads | upload, idempotency key, status changes, 2 results; device and status reads |
 | S3 per upload | 1 PUT, 1 LIST, 1 HEAD, 1 GET | upload, "has it arrived?", size check, worker read |

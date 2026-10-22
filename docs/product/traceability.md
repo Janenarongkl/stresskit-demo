@@ -27,8 +27,8 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | NFR3 | Upload success rate > 99.5% | SK-7, SK-17, SK-25 | Not measured | Dashboard: processed ÷ created per day | |
 | NFR4 | No tenant can read another's data | SK-3, SK-22, SK-23 | `test_tenant_isolation`; `test_every_item_is_keyed_by_tenant`, `test_api_cannot_read_recordings_and_worker_cannot_read_secrets` | Tests + review that IAM policies and keys always include the tenant | |
 | NFR5 | Encrypted in transit and at rest | SK-21, SK-22 | Local runs over HTTP (laptop only); template: `test_bucket_is_private_encrypted_and_https_only` | HTTPS only on API Gateway; S3 and DynamoDB encryption on | |
-| NFR6 | No secret in the repository | SK-23 | Demo values are labelled as public and overridable by env; `test_secrets_are_read_from_ssm` | Secret scanning on the repo; keys in SSM | |
-| NFR7 | Idle cost close to $0; demo month under $5 | SK-29, SK-26 | Budgets at $1, $5, $10 set on 21 Oct 2026; [cost.md](../cost.md), `test_no_always_on_compute` | AWS Budgets and Cost Explorer after one week | |
+| NFR6 | No secret in the repository | SK-23 | Demo values are labelled as public and overridable by env; `test_secrets_are_read_from_ssm`, `test_aws_refuses_to_start_without_ssm` | Secret scanning on the repo; keys in SSM | |
+| NFR7 | Idle cost close to $0; demo month under $5 | SK-29, SK-26 | Budgets at $1, $5, $10 set on 21 Oct 2026; [cost.md](../cost.md), `test_no_always_on_compute`. Known risk: oversize uploads to S3 (see cost.md) | AWS Budgets and Cost Explorer after one week | |
 | NFR8 | Every failure is visible | SK-11, SK-25, SK-28 | Upload becomes `failed` with `error` (`test_bad_file_marks_upload_failed`) | DLQ alarm fires on a broken file | |
 
 ## Test index
@@ -98,6 +98,9 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | `test_idempotency_key_replays_then_expires` | SK-22, SK-7 |
 | `test_secrets_are_read_from_ssm` | SK-23 |
 | `test_missing_ssm_parameters_fail_at_startup` | SK-23 |
+| `test_aws_refuses_to_start_without_ssm` | SK-23 |
+| `test_aws_refuses_the_public_demo_secrets_even_from_ssm` | SK-23 |
+| `test_racing_requests_with_one_key_get_one_upload` (local and DynamoDB) | SK-7, SK-22 |
 | `test_oversize_file_in_s3_is_marked_failed` | SK-21 |
 | `test_bucket_is_private_encrypted_and_https_only` | SK-21 |
 | `test_raw_recordings_expire` | SK-21 |
@@ -107,4 +110,4 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | `test_no_always_on_compute` | SK-29 |
 | `test_every_resource_that_takes_tags_is_tagged` | SK-26 |
 
-74 test cases in total, counting each parameter (20 of them for milestone 4). Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16, SK-20). NFR1 to NFR3 can only be measured once deployed.
+80 test cases in total, counting each parameter (23 of them for milestone 4). Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16, SK-20). NFR1 to NFR3 can only be measured once deployed.

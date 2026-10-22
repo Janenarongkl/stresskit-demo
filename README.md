@@ -54,7 +54,7 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1     macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest -q                      # 74 tests (the AWS ones use moto, no account needed)
+pytest -q                      # 80 tests (the AWS ones use moto, no account needed)
 python scripts/demo.py         # the whole flow in one process, every HTTP call printed
 ```
 
@@ -154,7 +154,7 @@ tests/               auth, upload flow, idempotency, tenant isolation, model, AW
 | `STRESSKIT_TOKEN_TTL_S`, `STRESSKIT_UPLOAD_URL_TTL_S` | 3600, 900 | |
 | `STRESSKIT_BACKEND` | `local` | `aws` keeps data in S3 and DynamoDB (`pip install -e ".[aws]"`) |
 | `STRESSKIT_BUCKET`, `STRESSKIT_TABLE` | none | Needed with `aws`; outputs of `sam deploy` |
-| `STRESSKIT_SSM_PREFIX` | none | Read the JWT secret and clients from SSM Parameter Store instead |
+| `STRESSKIT_SSM_PREFIX` | none | Read the JWT secret and clients from SSM Parameter Store. Required with `aws`: the API refuses to start on AWS with the public demo secrets |
 | `AWS_REGION` | `ap-southeast-7` | |
 
 ## Milestones

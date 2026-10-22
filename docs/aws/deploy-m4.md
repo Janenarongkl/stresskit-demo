@@ -73,6 +73,8 @@ export STRESSKIT_TABLE=<TableName output>
 
 ## 4. Run the API against AWS
 
+The API refuses to start on AWS without `STRESSKIT_SSM_PREFIX`, or if the secrets there are the public demo ones.
+
 ```bash
 export STRESSKIT_BACKEND=aws STRESSKIT_SSM_PREFIX=/stresskit/demo
 uvicorn stresskit_api.main:app --port 8000

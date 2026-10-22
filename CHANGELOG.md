@@ -10,6 +10,12 @@ Versions of the SDK (`stresskit-sdk`) and the API contract. The SDK follows [sem
 - `infra/template.yaml`: the S3 bucket, DynamoDB table and least-privilege IAM roles, deployed with `sam deploy` (see `docs/aws/deploy-m4.md`).
 - SDK: `upload_http` lets the file upload use its own HTTP client (the upload URL points at S3, not the API). A successful upload with an empty response body is handled.
 
+### Security
+- With `STRESSKIT_BACKEND=aws` the API refuses to start unless its secrets come from SSM and are not the public demo values.
+
+### Fixed
+- Two requests racing with the same `Idempotency-Key` now get the same upload; before, the slower one could get a second upload.
+
 ### Changed
 - The worker marks an upload `failed` when its file is over the size limit. An S3 pre-signed URL cannot cap the size the way the local upload route does.
 

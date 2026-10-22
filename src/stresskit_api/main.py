@@ -84,6 +84,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
         if not (settings.bucket and settings.table):
             raise RuntimeError("STRESSKIT_BACKEND=aws needs STRESSKIT_BUCKET and STRESSKIT_TABLE.")
+        # The demo secrets are public. Refuse to start rather than sign tokens with them.
+        if not settings.ssm_prefix or settings.uses_demo_secrets():
+            raise RuntimeError(
+                "STRESSKIT_BACKEND=aws needs STRESSKIT_SSM_PREFIX with your own secrets in SSM "
+                "Parameter Store; it never starts with the public demo secrets."
+            )
         app.state.store = store or DynamoStore(settings.table, settings.aws_region)
         app.state.blobs = S3BlobStore(settings.bucket, settings.aws_region)
     else:
@@ -236,7 +242,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         store.put_upload(who.tenant_id, upload)
         result = ticket_for(upload, who.tenant_id, request, blobs)
         if idempotency_key:
-            store.put_idempotent(who.tenant_id, idempotency_key, fingerprint, result)
+            kept = store.put_idempotent(who.tenant_id, idempotency_key, fingerprint, result)
+            if kept[1]["upload_id"] != upload.upload_id:
+                # Two requests with the same key raced and the other one stored first. Answer
+                # with its upload, so one key always means one upload. Ours is never used.
+                if kept[0] != fingerprint:
+                    raise HTTPException(409, "Idempotency-Key was used with a different body.")
+                stored = store.get_upload(who.tenant_id, kept[1]["upload_id"])
+                replay = ticket_for(stored, who.tenant_id, request, blobs) if stored else kept[1]
+                return JSONResponse(
+                    replay, status_code=201, headers={"Idempotent-Replayed": "true"}
+                )
         return result
 
     @app.put(

@@ -349,7 +349,7 @@ Feature · Must · 1 point · M4 · Built, deploy check pending · Depends on: n
 - **Given** the AWS account, **when** monthly spend passes $1, $5 or $10, **then** an email alert is sent. (Already set up on 21 Oct 2026.)
 - **Given** the planned architecture, **when** `docs/cost.md` is read, **then** it estimates monthly cost at 0, 1,000 and 100,000 uploads.
 - **Given** no traffic, **when** the stack has run for a week, **then** Cost Explorer shows under $1.
-- **Given** the stack, **when** it is no longer needed, **then** one command removes everything that costs money (see SK-26).
+- **Given** the stack, **when** it is no longer needed, **then** the removal steps (empty the bucket, `sam delete`, delete the two SSM parameters) leave nothing that costs money (see SK-26).
 
 Evidence: [`docs/cost.md`](../cost.md) (about $0 idle, $0.03 at 1,000 and $3.20 at 100,000 uploads a month for milestone 4); `test_no_always_on_compute`. After deploy: Cost Explorer check in [deploy-m4.md](../aws/deploy-m4.md) step 6.
 
@@ -359,7 +359,7 @@ Evidence: [`docs/cost.md`](../cost.md) (about $0 idle, $0.03 at 1,000 and $3.20 
 Enabler · Must · 3 points · M4 · Built, deploy check pending · Depends on: SK-29
 
 - **Given** the template, **when** `sam deploy` runs, **then** it creates every resource for the current milestone.
-- **Given** a deployed stack, **when** `sam delete` runs, **then** nothing that costs money is left behind.
+- **Given** a deployed stack, **when** the bucket is emptied and `sam delete` runs, **then** nothing that costs money is left behind. CloudFormation cannot delete a bucket that still has files, so emptying it is a separate step.
 - **Given** any resource, **when** its tags are read, **then** it has `project=stresskit-demo`.
 - **Given** a pull request that changes the template, **when** CI runs, **then** the template passes `cfn-lint` (the linter `sam validate --lint` runs).
 
@@ -385,9 +385,10 @@ Enabler · Must · 3 points · M4 · Built, deploy check pending · Depends on: 
 - **Given** any item, **when** its key is read, **then** the partition key starts with `TENANT#<tenant_id>`.
 - **Given** a window that is processed twice, **when** results are written, **then** the sort key `RESULT#<window_start>` makes the second write overwrite the first.
 - **Given** an idempotency key, **when** 24 hours pass, **then** it expires by time-to-live.
+- **Given** two requests with the same idempotency key at the same moment, **when** both are answered, **then** both get the same upload.
 - **Given** the tables, **when** their settings are read, **then** capacity is on-demand and point-in-time recovery is on.
 
-Evidence: `test_every_item_is_keyed_by_tenant`, `test_other_tenant_cannot_see_device_upload_or_results`, `test_reprocessing_overwrites_results_in_dynamodb`, `test_idempotency_key_replays_then_expires`, `test_table_is_on_demand_with_ttl_and_backups`. One table holds all four kinds of item; the tests create it from the template.
+Evidence: `test_every_item_is_keyed_by_tenant`, `test_other_tenant_cannot_see_device_upload_or_results`, `test_reprocessing_overwrites_results_in_dynamodb`, `test_idempotency_key_replays_then_expires`, `test_racing_requests_with_one_key_get_one_upload`, `test_table_is_on_demand_with_ttl_and_backups`. One table holds all four kinds of item; the tests create it from the template.
 
 ### SK-23 Least-privilege access
 **As an** operations engineer, **I need** each function to have only the permissions it uses, **so that** a bug in one part cannot read or change everything.
@@ -397,8 +398,9 @@ Enabler · Must · 2 points · M4 · Built, deploy check pending · Depends on: 
 - **Given** the API function's role, **when** it tries to read a raw file, **then** access is denied; it can only write upload records and create pre-signed URLs.
 - **Given** the worker's role, **when** it is reviewed, **then** it can read raw files and write results but cannot read signing keys.
 - **Given** the signing keys, **when** a function starts, **then** it reads them from SSM Parameter Store, not from code or plain environment variables.
+- **Given** `STRESSKIT_BACKEND=aws`, **when** the SSM prefix is missing or the secrets are the public demo ones, **then** the API refuses to start.
 
-Evidence: `test_api_cannot_read_recordings_and_worker_cannot_read_secrets`, `test_no_wildcard_actions_or_resources`, `test_secrets_are_read_from_ssm`, `test_missing_ssm_parameters_fail_at_startup`. The roles are attached to the Lambda functions in milestone 5 (SK-24, SK-25).
+Evidence: `test_api_cannot_read_recordings_and_worker_cannot_read_secrets`, `test_no_wildcard_actions_or_resources`, `test_secrets_are_read_from_ssm`, `test_missing_ssm_parameters_fail_at_startup`, `test_aws_refuses_to_start_without_ssm`, `test_aws_refuses_the_public_demo_secrets_even_from_ssm`. The roles are attached to the Lambda functions in milestone 5 (SK-24, SK-25).
 
 ### SK-24 Public HTTPS API on AWS
 **As an** operations engineer, **I need** the API served by API Gateway and Lambda, **so that** customer developers reach the same contract at a public HTTPS address (enables E1 to E5 on AWS).

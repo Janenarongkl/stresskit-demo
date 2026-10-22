@@ -47,5 +47,14 @@ Not counted: data transfer out to the internet (100 GB a month is free), and AWS
 - **Alerts:** AWS Budgets email at $1, $5 and $10 of monthly spend (set up on 21 Oct 2026).
 - **Credits:** $100 of AWS credits are applied before any card charge.
 - **Nothing hourly:** no EC2, RDS, NAT gateway or load balancer. `tests/test_template.py` fails if one is added.
-- **One command to remove it all:** `sam delete` (see [aws/deploy-m4.md](aws/deploy-m4.md)). Raw files also delete themselves after 90 days.
+- **Removing it all:** empty the bucket, then `sam delete` (CloudFormation cannot delete a bucket that still has files; see [aws/deploy-m4.md](aws/deploy-m4.md) step 7). Raw files also delete themselves after 90 days.
 - **Check after a week:** Cost Explorer, filtered by tag `project=stresskit-demo`, should show under $1.
+
+## Known risk: very large uploads (NFR7)
+
+On S3 an upload link cannot cap the file size the way the local API's `413` does, so a signed-in customer could send a file much larger than 10 MB. The worker marks it `failed` without reading it (decision D17), but the file is still stored.
+
+- **How bad:** one link allows one file of up to 5 GB, for 15 minutes. Kept for 90 days that is about $0.40 at most, and every link needs a valid token, so it is traceable to one customer.
+- **Mitigation now:** the $1, $5 and $10 budget alerts; the 90-day expiry.
+- **Fix if needed (milestone 5 or later):** switch to a pre-signed POST, whose policy can set a maximum size (`content-length-range`), or let the worker delete oversize files.
+

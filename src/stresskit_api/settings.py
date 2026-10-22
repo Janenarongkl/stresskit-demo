@@ -45,6 +45,13 @@ class Settings:
     aws_region: str = "ap-southeast-7"
     bucket: str | None = None
     table: str | None = None
+    ssm_prefix: str | None = None
+
+    def uses_demo_secrets(self) -> bool:
+        demo = {c["secret"] for c in DEMO_CLIENTS.values()}
+        return self.jwt_secret == DEMO_JWT_SECRET or any(
+            c.client_secret in demo for c in self.clients.values()
+        )
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -74,4 +81,5 @@ class Settings:
             aws_region=region,
             bucket=os.environ.get("STRESSKIT_BUCKET") or None,
             table=os.environ.get("STRESSKIT_TABLE") or None,
+            ssm_prefix=ssm_prefix or None,
         )

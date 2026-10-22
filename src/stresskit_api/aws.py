@@ -113,6 +113,9 @@ class DynamoStore:
     # --- idempotency --------------------------------------------------------------------
 
     def get_idempotent(self, tenant_id: str, key: str) -> tuple[str, dict] | None:
+        return self._read_idempotent(tenant_id, key)
+
+    def _read_idempotent(self, tenant_id: str, key: str) -> tuple[str, dict] | None:
         pk = self._pk(tenant_id, "IDEM", key)
         item = self.table.get_item(Key={"PK": pk, "SK": "META"}).get("Item")
         # DynamoDB deletes expired items within a day or two, not on the second: check here.
@@ -121,7 +124,9 @@ class DynamoStore:
         doc = json.loads(item["doc"])
         return doc["fingerprint"], doc["body"]
 
-    def put_idempotent(self, tenant_id: str, key: str, fingerprint: str, body: dict) -> None:
+    def put_idempotent(
+        self, tenant_id: str, key: str, fingerprint: str, body: dict
+    ) -> tuple[str, dict]:
         item = {
             "PK": self._pk(tenant_id, "IDEM", key),
             "SK": "META",
@@ -138,6 +143,11 @@ class DynamoStore:
         except ClientError as exc:
             if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
                 raise
+            # Another request with the same key got there first: its record wins.
+            stored = self._read_idempotent(tenant_id, key)
+            if stored is not None:
+                return stored
+        return fingerprint, body
 
 
 class S3BlobStore:

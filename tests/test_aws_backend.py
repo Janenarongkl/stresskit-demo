@@ -30,6 +30,18 @@ from stresskit_sim import generate  # noqa: E402
 
 REGION = "ap-southeast-7"
 TEMPLATE = Path(__file__).resolve().parents[1] / "infra" / "template.yaml"
+# Test-only secrets, stored in (moto) SSM the way a real deploy stores its own.
+JWT_KEY = "fake-jwt-signing-key-for-tests-only-0000"
+CLIENTS = {
+    "clinic-a": {"secret": "fake-secret-a", "tenant_id": "tenant-clinic-a"},
+    "clinic-b": {"secret": "fake-secret-b", "tenant_id": "tenant-clinic-b"},
+}
+
+
+def put_secrets(prefix, jwt_key=JWT_KEY, clients=CLIENTS) -> None:
+    ssm = boto3.client("ssm", region_name=REGION)
+    ssm.put_parameter(Name=f"{prefix}/jwt-secret", Value=jwt_key, Type="SecureString")
+    ssm.put_parameter(Name=f"{prefix}/clients", Value=json.dumps(clients), Type="SecureString")
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +55,7 @@ def aws_endpoint():
 
 @pytest.fixture
 def aws(aws_endpoint, monkeypatch):
-    """A fresh bucket and table for each test. The credentials are fake on purpose."""
+    """A fresh bucket, table and set of SSM secrets for each test. All values are fake."""
     monkeypatch.setenv("AWS_ENDPOINT_URL", aws_endpoint)
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "fake-test-key")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake-test-secret")
@@ -59,7 +71,10 @@ def aws(aws_endpoint, monkeypatch):
         KeySchema=spec["KeySchema"],
         AttributeDefinitions=spec["AttributeDefinitions"],
     )
-    return {"bucket": bucket, "table": table}
+    prefix = f"/stresskit/test-{uuid.uuid4().hex[:8]}"
+    put_secrets(prefix)
+    monkeypatch.setenv("STRESSKIT_SSM_PREFIX", prefix)
+    return {"bucket": bucket, "table": table, "prefix": prefix}
 
 
 def aws_settings(aws, **changes) -> Settings:
@@ -85,7 +100,7 @@ def upload_and_wait(sdk, recording) -> dict:
     return sdk.wait_until_processed(sent["upload_id"])
 
 
-def sdk_for(api, client_id="demo-clinic-a", secret="demo-secret-a") -> StressKitClient:
+def sdk_for(api, client_id="clinic-a", secret="fake-secret-a") -> StressKitClient:
     # The API calls go to the test app; the file goes over real HTTP to the (moto) S3 URL.
     return StressKitClient(
         "http://testserver", client_id, secret, http=api, upload_http=httpx.Client(trust_env=False)
@@ -152,7 +167,7 @@ def test_firmware_update_is_stored_in_dynamodb(sdk):
 def test_other_tenant_cannot_see_device_upload_or_results(sdk, api, aws):
     sdk.register_device("watch-001", model="S1", firmware_version="1.0")
     done = upload_and_wait(sdk, generate("calm", minutes=1, seed=3))
-    other = sdk_for(api, "demo-clinic-b", "demo-secret-b")
+    other = sdk_for(api, "clinic-b", "fake-secret-b")
     headers = other._bearer()
     assert api.get("/v1/devices/watch-001", headers=headers).status_code == 404
     assert api.get(f"/v1/uploads/{done['upload_id']}", headers=headers).status_code == 404
@@ -209,26 +224,40 @@ def test_idempotency_key_replays_then_expires(sdk, aws):
     assert sdk.create_upload("watch-001", **args)["upload_id"] != first["upload_id"]
 
 
+def test_racing_requests_with_one_key_get_one_upload(aws_app, sdk, monkeypatch):
+    # Two requests with the same key both pass the "seen it?" check before either stores.
+    sdk.register_device("watch-001", model="S1", firmware_version="1")
+    args = dict(started_at=STARTED_AT, sample_rate_hz=25, duration_s=60, idempotency_key="k-r")
+    first = sdk.create_upload("watch-001", **args)
+    monkeypatch.setattr(aws_app.state.store, "get_idempotent", lambda *a: None)
+    assert sdk.create_upload("watch-001", **args)["upload_id"] == first["upload_id"]
+
+
 # --- SK-23 / SK-26: secrets from SSM, size limit enforced by the worker --------------------
 
 
-def test_secrets_are_read_from_ssm(aws, monkeypatch):
-    ssm = boto3.client("ssm", region_name=REGION)
-    prefix = f"/stresskit/test-{uuid.uuid4().hex[:8]}"
-    jwt_key = "fake-jwt-signing-key-for-tests-only-0000"
-    clients = {"ssm-client": {"secret": "fake-ssm-secret", "tenant_id": "tenant-ssm"}}
-    ssm.put_parameter(Name=f"{prefix}/jwt-secret", Value=jwt_key, Type="SecureString")
-    ssm.put_parameter(Name=f"{prefix}/clients", Value=json.dumps(clients), Type="SecureString")
-    monkeypatch.setenv("STRESSKIT_SSM_PREFIX", prefix)
-
+def test_secrets_are_read_from_ssm(aws, api):
     settings = Settings.from_env()
-    assert settings.jwt_secret == jwt_key and list(settings.clients) == ["ssm-client"]
-    with TestClient(create_app(aws_settings(aws))) as api:
-        ok = {"grant_type": "client_credentials", "client_id": "ssm-client"}
-        good = ok | {"client_secret": "fake-ssm-secret"}
-        assert api.post("/v1/oauth/token", data=good).is_success
-        demo = ok | {"client_id": "demo-clinic-a", "client_secret": "demo-secret-a"}
-        assert api.post("/v1/oauth/token", data=demo).status_code == 401
+    assert settings.jwt_secret == JWT_KEY and sorted(settings.clients) == ["clinic-a", "clinic-b"]
+    ok = {"grant_type": "client_credentials", "client_id": "clinic-a"}
+    assert api.post("/v1/oauth/token", data=ok | {"client_secret": "fake-secret-a"}).is_success
+    demo = ok | {"client_id": "demo-clinic-a", "client_secret": "demo-secret-a"}
+    assert api.post("/v1/oauth/token", data=demo).status_code == 401
+
+
+def test_aws_refuses_to_start_without_ssm(aws, monkeypatch):
+    # A forgotten STRESSKIT_SSM_PREFIX would mean signing tokens with the public demo key.
+    monkeypatch.delenv("STRESSKIT_SSM_PREFIX")
+    with pytest.raises(RuntimeError, match="STRESSKIT_SSM_PREFIX"):
+        create_app(aws_settings(aws))
+
+
+def test_aws_refuses_the_public_demo_secrets_even_from_ssm(aws, monkeypatch):
+    prefix = f"/stresskit/test-{uuid.uuid4().hex[:8]}"
+    put_secrets(prefix, clients={"demo-clinic-a": {"secret": "demo-secret-a", "tenant_id": "t"}})
+    monkeypatch.setenv("STRESSKIT_SSM_PREFIX", prefix)
+    with pytest.raises(RuntimeError, match="demo secrets"):
+        create_app(aws_settings(aws))
 
 
 def test_missing_ssm_parameters_fail_at_startup(aws, monkeypatch):

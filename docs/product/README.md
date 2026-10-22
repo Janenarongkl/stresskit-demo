@@ -17,7 +17,7 @@ How StressKit is planned and checked, from the product owner's side. The [produc
 |---|---|---|---|
 | 1–2 Local API, contract, SDK, mock model | SK-1 to SK-4, SK-6 to SK-16 | 39 | Done |
 | 3 SDK and traceability | SK-18, SK-20, SK-5, SK-17 | 12 | Done (56 tests) |
-| 4 AWS foundations (cost guardrails, SAM, S3, DynamoDB, IAM) | SK-29, SK-26, SK-21, SK-22, SK-23 | 12 | Built (74 tests); deploy check pending |
+| 4 AWS foundations (cost guardrails, SAM, S3, DynamoDB, IAM) | SK-29, SK-26, SK-21, SK-22, SK-23 | 12 | Built (80 tests); deploy check pending |
 | 5 AWS compute (API Gateway, Lambda, SQS) | SK-24, SK-25 | 10 | Next |
 | 6 Webhooks and monitoring | SK-28, SK-27 | 8 | Planned |
 | Later | SK-19, SK-30 to SK-34 | | Not scheduled |

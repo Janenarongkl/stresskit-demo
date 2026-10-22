@@ -80,7 +80,9 @@ Requirements R1 to R7 come from the [product brief](../PRD.md). NFR1 to NFR8 are
 | `test_token_expired_while_offline_does_not_fail_the_drain` | SK-17 |
 | `test_expired_upload_link_is_renewed_with_the_same_key` | SK-17 |
 | `test_refused_recording_is_set_aside_and_the_rest_continue` | SK-17 |
+| `test_bad_secret_keeps_the_whole_queue` | SK-17 |
 | `test_replay_after_the_file_arrived_has_no_link` | SK-7, SK-17 |
 | `test_sdk_version_matches_its_package_metadata` | SK-20 |
+| `test_changelog_has_an_entry_for_this_sdk_version` | SK-20 |
 
-54 test cases in total, counting each parameter. Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16, SK-20). NFR1 to NFR3 can only be measured once deployed.
+56 test cases in total, counting each parameter. Criteria checked by hand instead of a test are marked "Manual check" in the backlog (SK-3, SK-7, SK-12, SK-14, SK-16, SK-20). NFR1 to NFR3 can only be measured once deployed.

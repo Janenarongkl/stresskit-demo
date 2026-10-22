@@ -54,7 +54,7 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1     macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest -q                      # 54 tests
+pytest -q                      # 56 tests
 python scripts/demo.py         # the whole flow in one process, every HTTP call printed
 ```
 

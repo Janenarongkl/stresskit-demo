@@ -234,6 +234,25 @@ def test_refused_recording_is_set_aside_and_the_rest_continue(net, tmp_path):
     assert len(queue) == 0 and len(list(queue.failed_dir.iterdir())) == 1
 
 
+def test_bad_secret_keeps_the_whole_queue(net, tmp_path):
+    queue = OfflineQueue(tmp_path / "q")
+    sdk = client_on(net, queue)
+    sdk.register_device("watch-001", model="S1", firmware_version="1.0")
+    net.offline = True
+    for h in range(2):
+        sdk.upload_recording("watch-001", recording(), STARTED_AT + timedelta(hours=h))
+    net.offline = False
+
+    # The customer rotated their secret while the phone was offline.
+    sdk._client_secret, sdk._token = "rotated-away", None
+    out = sdk.drain_queue()
+    assert out["sent"] == [] and out["failed"] == [] and out["remaining"] == 2
+    assert "401" in out["stopped"] and not queue.failed_dir.exists()
+
+    sdk._client_secret = "demo-secret-a"  # fixed: everything still goes up
+    assert len(sdk.drain_queue()["sent"]) == 2
+
+
 def test_replay_after_the_file_arrived_has_no_link(sdk, http, auth_a):
     sdk.register_device("watch-001", model="S1", firmware_version="1.0")
     item_key = "same-key"

@@ -314,7 +314,7 @@ Feature · Should · 2 points · M3 · Done · Depends on: SK-15
 - **Given** a new version, **when** it is released, **then** the version follows semantic versioning and `CHANGELOG.md` lists its changes.
 - **Given** a tag that does not match the version in `sdk/pyproject.toml`, **when** the release workflow runs, **then** it stops without publishing.
 
-Evidence: CI job `sdk-package` runs `scripts/check_sdk_wheel.py` (clean install, version check, no server dependencies); `test_sdk_version_matches_its_package_metadata`. Manual check: after merging, push tag `sdk-v0.3.0` and confirm the release and its wheel appear on GitHub.
+Evidence: CI job `sdk-package` runs `scripts/check_sdk_wheel.py` (clean install, version check, no server dependencies); `test_sdk_version_matches_its_package_metadata`, `test_changelog_has_an_entry_for_this_sdk_version`; the release workflow also refuses a tag with no CHANGELOG entry. Manual check: after merging, push tag `sdk-v0.3.0` and confirm the release and its wheel appear on GitHub.
 
 ### SK-17 Keep recordings while offline
 **As a** wearer, **I want** recordings made without a network to upload later on their own, **so that** no session is lost on a flight or in a basement.
@@ -328,8 +328,9 @@ Feature · Must · 5 points · M3 · Done · Depends on: SK-15, SK-18
 - **Given** the token expired while offline, **when** the queue drains, **then** the SDK gets a new token first and no upload fails with `401`.
 - **Given** an upload link expired while queued, **when** the queue drains, **then** the SDK asks for a new link with the same `Idempotency-Key` and succeeds.
 - **Given** a queued recording the server refuses for good (for example, an unknown device), **when** the queue drains, **then** it is set aside in `failed/` with the reason and the rest still upload.
+- **Given** the client secret is wrong or was rotated, **when** the queue drains, **then** it stops, keeps every recording queued and says why; nothing goes to `failed/`.
 
-Evidence: `test_offline_upload_is_queued_and_sent_when_back_online`, `test_queue_drains_oldest_first`, `test_queue_survives_an_app_restart`, `test_full_queue_raises_and_keeps_what_it_has`, `test_token_expired_while_offline_does_not_fail_the_drain`, `test_expired_upload_link_is_renewed_with_the_same_key`, `test_refused_recording_is_set_aside_and_the_rest_continue`
+Evidence: `test_offline_upload_is_queued_and_sent_when_back_online`, `test_queue_drains_oldest_first`, `test_queue_survives_an_app_restart`, `test_full_queue_raises_and_keeps_what_it_has`, `test_token_expired_while_offline_does_not_fail_the_drain`, `test_expired_upload_link_is_renewed_with_the_same_key`, `test_refused_recording_is_set_aside_and_the_rest_continue`, `test_bad_secret_keeps_the_whole_queue`
 
 ---
 

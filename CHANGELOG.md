@@ -12,7 +12,11 @@ Versions of the SDK (`stresskit-sdk`) and the API contract. The SDK follows [sem
 - The SDK is built as its own wheel with only `httpx` as a dependency, and tags `sdk-v*` publish it as a GitHub release.
 
 ### Changed
-- An `Idempotency-Key` replay for an upload whose file has not arrived returns a fresh `upload_url`, so a recording queued for longer than 15 minutes can still be sent. Once the file has arrived, a replay returns `upload_url: null`.
+- An `Idempotency-Key` replay for an upload whose file has not arrived returns a fresh `upload_url`, so a recording queued for longer than 15 minutes can still be sent.
+- `drain_queue()` stops and keeps recordings queued on `401` or `403` (for example, a rotated secret), and its result says why in `stopped`. Only permanent refusals go to `failed/`.
+
+### Contract
+- `upload_url` and `upload_url_expires_at` in `POST /v1/uploads` responses can now be `null`: an `Idempotency-Key` replay after the file has arrived returns no link. Clients that assumed a string must handle `null` (decision D14).
 
 ## 0.2.0 (milestones 1 and 2)
 

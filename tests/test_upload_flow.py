@@ -36,6 +36,7 @@ def test_end_to_end_with_sdk(sdk, scenario, label, quality):
     results = sdk.get_results("watch-001")
     assert [r["label"] for r in results] == [label, label]
     assert {r["signal_quality"] for r in results} == {quality}
+    assert {r["model_version"] for r in results} == {"mock-hr-threshold-0.1"}
     assert results[0]["window_start"].startswith("2026-10-21T09:00:00")
     assert results[1]["window_start"].startswith("2026-10-21T09:01:00")
 
@@ -117,6 +118,7 @@ def test_tenant_isolation(http, auth_a, auth_b, sdk):
     # Clinic B uses the same ids and sees nothing of clinic A's data.
     assert http.get("/v1/devices/watch-001", headers=auth_b).status_code == 404
     assert http.get(f"/v1/uploads/{done['upload_id']}", headers=auth_b).status_code == 404
+    assert http.post(f"/v1/uploads/{done['upload_id']}/complete", headers=auth_b).status_code == 404
     assert (
         http.get("/v1/results", params={"device_id": "watch-001"}, headers=auth_b).status_code
         == 404

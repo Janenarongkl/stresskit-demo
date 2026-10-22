@@ -4,21 +4,23 @@ How StressKit is planned and checked, from the product owner's side. The [produc
 
 | File | What it holds | Use it to |
 |---|---|---|
-| [backlog.md](backlog.md) | Personas, 8 epics, 34 user stories with acceptance criteria, status and evidence | Plan a milestone; explain a feature in user terms |
+| [backlog.md](backlog.md) | Personas, 8 epics, 34 stories (features and enablers) with Given/When/Then criteria, dependencies, milestone load and evidence | Plan a milestone; explain a feature in user terms |
 | [traceability.md](traceability.md) | Requirements and quality targets → stories → tests, with an empty AWS column | Cross-check each AWS milestone against what already works locally |
 | [quality-and-done.md](quality-and-done.md) | Non-functional targets, Definition of Ready, Definition of Done | Decide whether a story can start, and whether it is finished |
 | [decisions.md](decisions.md) | Why the main design choices were made, and open questions | Answer "why did you do it this way?" |
 
 ## Where things stand
 
-| Milestone | Stories | Status |
-|---|---|---|
-| 1–2 Local API, contract, SDK, mock model | SK-1 to SK-4, SK-6 to SK-16 | Done, 23 tests |
-| 3 SDK robustness | SK-17 to SK-20 | Next |
-| 4 AWS storage (S3, DynamoDB, IAM) | SK-21 to SK-23 | Planned |
-| 5 AWS compute (API Gateway, Lambda, SQS, SAM) | SK-24 to SK-26 | Planned |
-| 6 Webhooks, monitoring, cost | SK-27 to SK-29 | Planned |
-| Later | SK-5, SK-30 to SK-34 | Not scheduled |
+| Milestone | Stories | Points | Status |
+|---|---|---|---|
+| 1–2 Local API, contract, SDK, mock model | SK-1 to SK-4, SK-6 to SK-16 | 39 | Done, 36 tests |
+| 3 SDK and traceability | SK-18, SK-20, SK-5, SK-17 | 12 | Next |
+| 4 AWS foundations (cost guardrails, SAM, S3, DynamoDB, IAM) | SK-29, SK-26, SK-21, SK-22, SK-23 | 12 | Planned |
+| 5 AWS compute (API Gateway, Lambda, SQS) | SK-24, SK-25 | 10 | Planned |
+| 6 Webhooks and monitoring | SK-28, SK-27 | 8 | Planned |
+| Later | SK-19, SK-30 to SK-34 | | Not scheduled |
+
+The backlog also has the dependency graph and the milestone 3 ranking (WSJF).
 
 ## How to cross-check a milestone
 

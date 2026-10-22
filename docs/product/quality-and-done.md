@@ -19,17 +19,18 @@ The demo is **not a medical device**. A real product would add IEC 62304 softwar
 
 A story is ready to start when:
 
-- It follows "As a … I want … so that …" and names a persona from the [backlog](backlog.md).
+- It follows "As a … I want … so that …" (a Feature) or "As a … I need … so that …" (an Enabler) and names a persona from the [backlog](backlog.md).
 - It has acceptance criteria that a test or a single manual check can prove.
 - Any change to the API contract is written down (path, request, response, error codes).
 - It fits in one milestone; if it is 8 points or more, consider splitting it.
-- Dependencies are known (for example, SK-25 needs SK-22).
+- Its Type (Feature or Enabler) and its Depends on list are filled in, and those stories are done or planned earlier.
+- Every acceptance criterion is written as Given / When / Then.
 
 ## Definition of Done
 
 A story is done when:
 
-- All acceptance criteria pass, and each has a named test (or a written manual check).
+- All acceptance criteria pass, and the story's Evidence line names a test or a "Manual check" for every criterion.
 - `ruff check`, `ruff format --check` and `pytest` pass in CI on Python 3.11 and 3.13.
 - `docs/openapi.json` is regenerated if the contract changed, and the change is backwards compatible within `/v1`.
 - The README, this folder and the [traceability matrix](traceability.md) are updated.

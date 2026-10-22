@@ -15,6 +15,8 @@ Short records of product and architecture decisions: what was chosen, what else 
 | D9 | 2026-10-21 | Results are keyed by window start, so reprocessing overwrites | Append-only results | Safe retries and reprocessing (SK-11, SK-25) | Accepted |
 | D10 | 2026-10-21 | AWS region ap-southeast-7 (Thailand), serverless only | ap-southeast-1 (Singapore); containers on EC2 or ECS | Data stays in Thailand, a likely customer expectation for health data; serverless keeps idle cost near zero. Confirm that API Gateway, Lambda, SQS, S3 and DynamoDB are all available there before milestone 4 | Accepted, to verify |
 | D11 | 2026-10-21 | The mock model uses a heart-rate threshold (above 90 bpm = stressed) | Heart-rate variability features; a trained classifier | The demo is about the system around the model. A real model would use HRV and skin temperature, trained on labelled data; the interface (`model_version`, `signal_quality`) already allows swapping it | Accepted for the demo |
+| D12 | 2026-10-22 | Defer multipart upload (SK-19) out of milestone 3; add firmware traceability (SK-5) instead | Keep SK-19 in M3 | WSJF ranking: SK-19 scores 0.8 against 3.6 to 7.0 for the others. Demo recordings are about 105 KB, and M3 drops from 17 points to 12 | Accepted |
+| D13 | 2026-10-22 | Infrastructure as code (SK-26) and cost guardrails (SK-29) come first in milestone 4, before any resource is created | SAM at the end of milestone 5; cost review in milestone 6 | Cost risk starts with the first deployed resource, and resources created by hand are easy to forget and hard to delete | Accepted |
 
 ## Open questions
 

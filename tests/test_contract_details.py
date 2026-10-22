@@ -149,3 +149,12 @@ def test_sdk_gives_up_after_three_retries(monkeypatch):  # SK-15
         client.get_device("watch-001")
     assert err.value.status == 503
     assert len(attempts) == 4
+
+
+def test_racing_requests_with_one_key_get_one_upload(app, sdk, monkeypatch):  # SK-7
+    # Two requests with the same key both pass the "seen it?" check before either stores.
+    sdk.register_device("watch-001", model="S1", firmware_version="1")
+    args = dict(started_at=STARTED_AT, sample_rate_hz=25, duration_s=60, idempotency_key="k-r")
+    first = sdk.create_upload("watch-001", **args)
+    monkeypatch.setattr(app.state.store, "get_idempotent", lambda *a: None)
+    assert sdk.create_upload("watch-001", **args)["upload_id"] == first["upload_id"]

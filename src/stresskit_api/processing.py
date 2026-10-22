@@ -11,7 +11,7 @@ import json
 from datetime import timedelta
 
 from . import mock_model
-from .blobstore import LocalBlobStore
+from .blobstore import BlobStore
 from .models import UploadStatus, WindowResult
 from .store import Store
 
@@ -20,12 +20,25 @@ def blob_key(tenant_id: str, device_id: str, upload_id: str) -> str:
     return f"{tenant_id}/{device_id}/{upload_id}.json"
 
 
-def process_upload(store: Store, blobs: LocalBlobStore, tenant_id: str, upload_id: str) -> None:
+DEFAULT_MAX_BYTES = 10 * 1024 * 1024
+
+
+def process_upload(
+    store: Store,
+    blobs: BlobStore,
+    tenant_id: str,
+    upload_id: str,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+) -> None:
     upload = store.get_upload(tenant_id, upload_id)
     if upload is None or upload.status != UploadStatus.processing:
         return
+    key = blob_key(tenant_id, upload.device_id, upload_id)
     try:
-        raw = json.loads(blobs.read(blob_key(tenant_id, upload.device_id, upload_id)))
+        # An S3 pre-signed PUT cannot cap the file size, so the worker checks before reading.
+        if blobs.size(key) > max_bytes:
+            raise ValueError(f"recording is larger than the {max_bytes} byte limit")
+        raw = json.loads(blobs.read(key))
         ppg, acc = raw["ppg"], raw["acc"]
         if not isinstance(ppg, list) or not isinstance(acc, list) or len(ppg) != len(acc):
             raise ValueError("ppg and acc must be lists of the same length")

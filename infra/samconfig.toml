@@ -1,0 +1,11 @@
+# `sam deploy` reads this, so the command needs no flags. See docs/aws/deploy-m4.md.
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "stresskit-demo"
+region = "ap-southeast-7"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+tags = "project=\"stresskit-demo\""
+parameter_overrides = "SsmPrefix=\"/stresskit/demo\""

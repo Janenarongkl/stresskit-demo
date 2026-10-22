@@ -15,9 +15,20 @@ import hmac
 import re
 import time
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import urlencode
 
 KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,64}\.json$")
+
+
+class BlobStore(Protocol):
+    """What the API and the worker need from raw-file storage (local folder or S3)."""
+
+    def presign_put(self, key: str, base_url: str, ttl_s: int) -> tuple[str, int]: ...
+    def exists(self, key: str) -> bool: ...
+    def size(self, key: str) -> int: ...
+    def read(self, key: str) -> bytes: ...
+    def write(self, key: str, data: bytes) -> None: ...
 
 
 class LocalBlobStore:
@@ -56,6 +67,9 @@ class LocalBlobStore:
 
     def exists(self, key: str) -> bool:
         return self._path(key).is_file()
+
+    def size(self, key: str) -> int:
+        return self._path(key).stat().st_size
 
     def read(self, key: str) -> bytes:
         return self._path(key).read_bytes()

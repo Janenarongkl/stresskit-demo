@@ -23,6 +23,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
+      - run: cfn-lint infra/template.yaml
       - run: pytest -q
       - run: python scripts/demo.py
 

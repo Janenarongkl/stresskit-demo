@@ -3,7 +3,7 @@
   "info": {
     "title": "StressKit API",
     "description": "\nDemo backend for a wearable stress-detection product. A device (or the customer's app)\nuses the Python SDK to get a token, register the device, upload a PPG + accelerometer\nrecording through a pre-signed URL, and read back one stress label per 60-second window.\n\nAll errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details.\n**Demo credentials** (public, demo only): `demo-clinic-a` / `demo-secret-a`.\n",
-    "version": "0.2.0"
+    "version": "0.4.0"
   },
   "paths": {
     "/healthz": {

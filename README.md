@@ -54,7 +54,7 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1     macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest -q                      # 56 tests
+pytest -q                      # 80 tests (the AWS ones use moto, no account needed)
 python scripts/demo.py         # the whole flow in one process, every HTTP call printed
 ```
 
@@ -65,6 +65,8 @@ uvicorn stresskit_api.main:app --reload
 # open http://127.0.0.1:8000/docs  (Authorize with demo-clinic-a / demo-secret-a)
 python scripts/demo.py --base-url http://127.0.0.1:8000    # in a second terminal
 ```
+
+Run the same API on real S3 and DynamoDB (milestone 4): see [docs/aws/deploy-m4.md](docs/aws/deploy-m4.md). Expected cost is close to $0 ([docs/cost.md](docs/cost.md)).
 
 Demo output (step 5):
 
@@ -133,7 +135,11 @@ scripts/check_sdk_wheel.py   installs the SDK wheel in a clean venv and checks i
 docs/PRD.md          one-page product brief and milestones
 docs/product/        backlog (user stories), traceability, Definition of Done, decision log
 docs/openapi.json    the API contract
-tests/               auth, upload flow, idempotency, tenant isolation, model
+docs/cost.md         monthly AWS cost at 0, 1,000 and 100,000 uploads
+docs/aws/            how to deploy, check and remove the AWS stack
+infra/template.yaml  AWS resources (SAM): S3 bucket, DynamoDB table, IAM roles
+src/stresskit_api/aws.py   the S3 and DynamoDB versions of the storage classes
+tests/               auth, upload flow, idempotency, tenant isolation, model, AWS (moto), template
 ```
 
 ## Configuration
@@ -146,12 +152,16 @@ tests/               auth, upload flow, idempotency, tenant isolation, model
 | `STRESSKIT_DATA_DIR` | `.data` | Where uploaded files go (git-ignored) |
 | `STRESSKIT_PUBLIC_BASE_URL` | request host | Host used in upload URLs behind a proxy |
 | `STRESSKIT_TOKEN_TTL_S`, `STRESSKIT_UPLOAD_URL_TTL_S` | 3600, 900 | |
+| `STRESSKIT_BACKEND` | `local` | `aws` keeps data in S3 and DynamoDB (`pip install -e ".[aws]"`) |
+| `STRESSKIT_BUCKET`, `STRESSKIT_TABLE` | none | Needed with `aws`; outputs of `sam deploy` |
+| `STRESSKIT_SSM_PREFIX` | none | Read the JWT secret and clients from SSM Parameter Store. Required with `aws`: the API refuses to start on AWS with the public demo secrets |
+| `AWS_REGION` | `ap-southeast-7` | |
 
 ## Milestones
 
 - [x] 1. Layout, mock wearable, local API
 - [x] 2. API contract: auth, devices, uploads, results, errors, idempotency, OpenAPI
 - [x] 3. SDK: offline buffer, retry tests, packaged release; firmware traceability
-- [ ] 4. AWS foundations: cost guardrails, SAM, S3, DynamoDB, IAM
+- [x] 4. AWS foundations: cost guardrails, SAM, S3, DynamoDB, IAM (built and tested; first deploy is a manual step)
 - [ ] 5. AWS compute: API Gateway, Lambda, SQS + DLQ
 - [ ] 6. Webhooks, CloudWatch dashboard and alarms

@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .auth import Principal, get_settings, issue_token, require_principal
-from .blobstore import LocalBlobStore
+from .blobstore import BlobStore, LocalBlobStore
 from .models import (
     ID_PATTERN,
     Device,
@@ -77,10 +77,24 @@ def _problem(status: int, detail: str | None, headers: dict | None = None, **ext
 
 def create_app(settings: Settings | None = None, store: Store | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="StressKit API", version="0.2.0", description=DESCRIPTION)
+    app = FastAPI(title="StressKit API", version="0.4.0", description=DESCRIPTION)
     app.state.settings = settings
-    app.state.store = store or InMemoryStore()
-    app.state.blobs = LocalBlobStore(settings.data_dir / "blobs", settings.blob_signing_key)
+    if settings.backend == "aws":
+        from .aws import DynamoStore, S3BlobStore
+
+        if not (settings.bucket and settings.table):
+            raise RuntimeError("STRESSKIT_BACKEND=aws needs STRESSKIT_BUCKET and STRESSKIT_TABLE.")
+        # The demo secrets are public. Refuse to start rather than sign tokens with them.
+        if not settings.ssm_prefix or settings.uses_demo_secrets():
+            raise RuntimeError(
+                "STRESSKIT_BACKEND=aws needs STRESSKIT_SSM_PREFIX with your own secrets in SSM "
+                "Parameter Store; it never starts with the public demo secrets."
+            )
+        app.state.store = store or DynamoStore(settings.table, settings.aws_region)
+        app.state.blobs = S3BlobStore(settings.bucket, settings.aws_region)
+    else:
+        app.state.store = store or InMemoryStore()
+        app.state.blobs = LocalBlobStore(settings.data_dir / "blobs", settings.blob_signing_key)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -94,12 +108,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     def get_store(request: Request) -> Store:
         return request.app.state.store
 
-    def get_blobs(request: Request) -> LocalBlobStore:
+    def get_blobs(request: Request) -> BlobStore:
         return request.app.state.blobs
 
     AuthDep = Annotated[Principal, Depends(require_principal)]
     StoreDep = Annotated[Store, Depends(get_store)]
-    BlobsDep = Annotated[LocalBlobStore, Depends(get_blobs)]
+    BlobsDep = Annotated[BlobStore, Depends(get_blobs)]
 
     @app.get("/healthz", tags=["ops"])
     def healthz() -> dict:
@@ -149,7 +163,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         store.update_device(who.tenant_id, device)
         return device
 
-    def ticket_for(upload: Upload, tenant_id: str, request: Request, blobs: LocalBlobStore) -> dict:
+    def ticket_for(upload: Upload, tenant_id: str, request: Request, blobs: BlobStore) -> dict:
         """The upload plus a pre-signed link, which is only useful while no file has arrived."""
         if upload.status != UploadStatus.pending_upload:
             return upload.model_dump(mode="json") | {
@@ -228,7 +242,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         store.put_upload(who.tenant_id, upload)
         result = ticket_for(upload, who.tenant_id, request, blobs)
         if idempotency_key:
-            store.put_idempotent(who.tenant_id, idempotency_key, fingerprint, result)
+            kept = store.put_idempotent(who.tenant_id, idempotency_key, fingerprint, result)
+            if kept[1]["upload_id"] != upload.upload_id:
+                # Two requests with the same key raced and the other one stored first. Answer
+                # with its upload, so one key always means one upload. Ours is never used.
+                if kept[0] != fingerprint:
+                    raise HTTPException(409, "Idempotency-Key was used with a different body.")
+                stored = store.get_upload(who.tenant_id, kept[1]["upload_id"])
+                replay = ticket_for(stored, who.tenant_id, request, blobs) if stored else kept[1]
+                return JSONResponse(
+                    replay, status_code=201, headers={"Idempotent-Replayed": "true"}
+                )
         return result
 
     @app.put(
@@ -244,6 +268,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         signature: Annotated[str, Query()],
     ) -> dict:
         """Local stand-in for an S3 pre-signed PUT. Authorised by the signature, not a token."""
+        if not isinstance(blobs, LocalBlobStore):
+            raise HTTPException(404, "Uploads go straight to S3 on this deployment.")
         reason = blobs.verify("PUT", key, expires, signature)
         if reason:
             raise HTTPException(403, reason)
@@ -286,7 +312,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(409, "No file was uploaded to the upload URL yet.")
         upload = upload.model_copy(update={"status": UploadStatus.processing})
         store.put_upload(who.tenant_id, upload)
-        background.add_task(process_upload, store, blobs, who.tenant_id, upload_id)
+        background.add_task(
+            process_upload, store, blobs, who.tenant_id, upload_id, settings.max_upload_bytes
+        )
         return upload
 
     @app.get("/v1/uploads/{upload_id}", response_model=Upload, tags=["uploads"], responses=ERRORS)

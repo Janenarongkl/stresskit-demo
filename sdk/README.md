@@ -3,7 +3,7 @@
 The Python client for the [StressKit demo](https://github.com/Janenarongkl/stresskit-demo) API.
 
 ```bash
-pip install stresskit_sdk-0.3.0-py3-none-any.whl   # from the GitHub release
+pip install stresskit_sdk-0.4.0-py3-none-any.whl   # from the GitHub release
 ```
 
 ```python

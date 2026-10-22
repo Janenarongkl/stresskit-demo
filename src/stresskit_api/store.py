@@ -2,9 +2,7 @@
 
 `InMemoryStore` is used locally and in tests. Milestone 4 adds a DynamoDB store with the
 same methods. Every key starts with the tenant id, so one tenant can never read another
-tenant's rows; in DynamoDB that becomes the partition key:
-
-    PK = TENANT#<tenant>#DEVICE#<device>    SK = META | UPLOAD#<id> | RESULT#<window_start>
+tenant's rows. In DynamoDB the tenant starts every partition key (layout in aws.py).
 """
 
 from __future__ import annotations
@@ -24,7 +22,11 @@ class Store(Protocol):
     def put_results(self, tenant_id: str, results: list[WindowResult]) -> None: ...
     def list_results(self, tenant_id: str, device_id: str, limit: int) -> list[WindowResult]: ...
     def get_idempotent(self, tenant_id: str, key: str) -> tuple[str, dict] | None: ...
-    def put_idempotent(self, tenant_id: str, key: str, fingerprint: str, body: dict) -> None: ...
+    def put_idempotent(
+        self, tenant_id: str, key: str, fingerprint: str, body: dict
+    ) -> tuple[str, dict]:
+        """Store the record unless one exists. Returns the record that is stored now."""
+        ...
 
 
 class InMemoryStore:
@@ -72,6 +74,8 @@ class InMemoryStore:
     def get_idempotent(self, tenant_id: str, key: str) -> tuple[str, dict] | None:
         return self._idem.get((tenant_id, key))
 
-    def put_idempotent(self, tenant_id: str, key: str, fingerprint: str, body: dict) -> None:
+    def put_idempotent(
+        self, tenant_id: str, key: str, fingerprint: str, body: dict
+    ) -> tuple[str, dict]:
         with self._lock:
-            self._idem.setdefault((tenant_id, key), (fingerprint, body))
+            return self._idem.setdefault((tenant_id, key), (fingerprint, body))

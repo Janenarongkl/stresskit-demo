@@ -36,8 +36,11 @@ class StressKitClient:
         http: httpx.Client | None = None,
         max_retries: int = 3,
         offline_queue: OfflineQueue | None = None,
+        upload_http: httpx.Client | None = None,
     ) -> None:
         self._http = http or httpx.Client(base_url=base_url, timeout=30)
+        # The file goes to the upload URL's own host (S3 on AWS), not the API.
+        self._upload_http = upload_http or self._http
         self.offline_queue = offline_queue
         self._client_id = client_id
         self._client_secret = client_secret
@@ -68,7 +71,7 @@ class StressKitClient:
     @staticmethod
     def _check(resp: httpx.Response) -> Any:
         if resp.is_success:
-            return resp.json()
+            return resp.json() if resp.content else {}  # S3 answers a PUT with an empty body
         try:
             problem = resp.json()
         except ValueError:
@@ -153,7 +156,7 @@ class StressKitClient:
 
     def put_file(self, upload_url: str, payload: dict) -> None:
         # No Authorization header: the signature in the URL is the permission.
-        resp = self._http.put(
+        resp = self._upload_http.put(
             upload_url,
             content=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},

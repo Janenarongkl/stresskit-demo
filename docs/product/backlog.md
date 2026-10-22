@@ -42,12 +42,12 @@ Acceptance criteria use Given / When / Then. Every criterion of a Done story has
 |---|---|---|
 | 1–2 Local API and contract | SK-1 to SK-4, SK-6 to SK-16 | 39, done |
 | 3 SDK and traceability | SK-18, SK-20, SK-5, SK-17 | 12, done |
-| 4 AWS foundations | SK-29, SK-26, SK-21, SK-22, SK-23 | 12 |
+| 4 AWS foundations | SK-29, SK-26, SK-21, SK-22, SK-23 | 12, built; deploy check pending |
 | 5 AWS compute | SK-24, SK-25 | 10 |
 | 6 Notify and operate | SK-28, SK-27 | 8 |
 | Later | SK-19 (8), SK-30 to SK-34 (not sized) | |
 
-Remaining planned work: 30 points. A comfortable milestone for one person is 8 to 13 points.
+Remaining planned work: 18 points, plus the milestone 4 deploy check. A comfortable milestone for one person is 8 to 13 points.
 
 ### Milestone 3 ranking (WSJF)
 
@@ -344,51 +344,63 @@ Shared acceptance criteria for every E7 story:
 ### SK-29 Cost guardrails before the first deploy
 **As the** account owner, **I want** spend alerts and a cost estimate before anything is deployed, **so that** the demo never surprises me with a bill.
 
-Feature · Must · 1 point · M4 · Planned · Depends on: none
+Feature · Must · 1 point · M4 · Built, deploy check pending · Depends on: none
 
 - **Given** the AWS account, **when** monthly spend passes $1, $5 or $10, **then** an email alert is sent. (Already set up on 21 Oct 2026.)
 - **Given** the planned architecture, **when** `docs/cost.md` is read, **then** it estimates monthly cost at 0, 1,000 and 100,000 uploads.
 - **Given** no traffic, **when** the stack has run for a week, **then** Cost Explorer shows under $1.
-- **Given** the stack, **when** it is no longer needed, **then** one command removes everything that costs money (see SK-26).
+- **Given** the stack, **when** it is no longer needed, **then** the removal steps (empty the bucket, `sam delete`, delete the two SSM parameters) leave nothing that costs money (see SK-26).
+
+Evidence: [`docs/cost.md`](../cost.md) (about $0 idle, $0.03 at 1,000 and $3.20 at 100,000 uploads a month for milestone 4); `test_no_always_on_compute`. After deploy: Cost Explorer check in [deploy-m4.md](../aws/deploy-m4.md) step 6.
 
 ### SK-26 Infrastructure as code
 **As an** operations engineer, **I need** every AWS resource defined in one SAM template from the start, **so that** the stack can be created, reviewed and deleted in one command and nothing is set up by hand.
 
-Enabler · Must · 3 points · M4 · Planned · Depends on: SK-29
+Enabler · Must · 3 points · M4 · Built, deploy check pending · Depends on: SK-29
 
 - **Given** the template, **when** `sam deploy` runs, **then** it creates every resource for the current milestone.
-- **Given** a deployed stack, **when** `sam delete` runs, **then** nothing that costs money is left behind.
+- **Given** a deployed stack, **when** the bucket is emptied and `sam delete` runs, **then** nothing that costs money is left behind. CloudFormation cannot delete a bucket that still has files, so emptying it is a separate step.
 - **Given** any resource, **when** its tags are read, **then** it has `project=stresskit-demo`.
-- **Given** a pull request that changes the template, **when** CI runs, **then** `sam validate` passes.
+- **Given** a pull request that changes the template, **when** CI runs, **then** the template passes `cfn-lint` (the linter `sam validate --lint` runs).
+
+Evidence: [`infra/template.yaml`](../../infra/template.yaml) and `infra/samconfig.toml`; CI step `cfn-lint infra/template.yaml`; `test_every_resource_that_takes_tags_is_tagged`. After deploy: `sam deploy` and `sam delete` in [deploy-m4.md](../aws/deploy-m4.md) steps 3 and 7.
 
 ### SK-21 File storage for raw recordings
 **As an** operations engineer, **I need** an encrypted S3 bucket with one prefix per tenant, **so that** customers can upload recordings straight to durable, cheap storage (enables SK-6 on AWS).
 
-Enabler · Must · 3 points · M4 · Planned · Depends on: SK-26
+Enabler · Must · 3 points · M4 · Built, deploy check pending · Depends on: SK-26
 
 - **Given** a new upload, **when** the API creates its `upload_url`, **then** it is an S3 pre-signed PUT URL valid for 15 minutes for exactly one key `tenant/device/upload_id.json`.
 - **Given** a changed or expired URL, **when** it is used, **then** S3 refuses it with `403`.
 - **Given** the bucket, **when** its settings are read, **then** public access is blocked and objects are encrypted at rest.
-- **Given** an object older than 30 days, **when** the lifecycle rule runs, **then** it moves to a cheaper storage class.
+- **Given** an object older than 90 days, **when** the lifecycle rule runs, **then** it is deleted (D15; no move to a cheaper class, since files under 128 KB cost more there).
+
+Evidence: `test_upload_link_is_s3_scoped_to_one_file_and_short_lived`, `test_sdk_end_to_end_on_s3_and_dynamodb`, `test_bucket_is_private_encrypted_and_https_only`, `test_raw_recordings_expire`, `test_oversize_file_in_s3_is_marked_failed`. The `403` on a changed or expired URL needs real S3 (moto does not check signatures): [deploy-m4.md](../aws/deploy-m4.md) step 6.
 
 ### SK-22 Record storage for devices, uploads and results
 **As an** operations engineer, **I need** DynamoDB tables keyed by tenant first, **so that** lookups stay fast and one tenant's query can never return another's items (enables SK-3, SK-7 and SK-9 on AWS).
 
-Enabler · Must · 3 points · M4 · Planned · Depends on: SK-26
+Enabler · Must · 3 points · M4 · Built, deploy check pending · Depends on: SK-26
 
 - **Given** any item, **when** its key is read, **then** the partition key starts with `TENANT#<tenant_id>`.
 - **Given** a window that is processed twice, **when** results are written, **then** the sort key `RESULT#<window_start>` makes the second write overwrite the first.
 - **Given** an idempotency key, **when** 24 hours pass, **then** it expires by time-to-live.
+- **Given** two requests with the same idempotency key at the same moment, **when** both are answered, **then** both get the same upload.
 - **Given** the tables, **when** their settings are read, **then** capacity is on-demand and point-in-time recovery is on.
+
+Evidence: `test_every_item_is_keyed_by_tenant`, `test_other_tenant_cannot_see_device_upload_or_results`, `test_reprocessing_overwrites_results_in_dynamodb`, `test_idempotency_key_replays_then_expires`, `test_racing_requests_with_one_key_get_one_upload`, `test_table_is_on_demand_with_ttl_and_backups`. One table holds all four kinds of item; the tests create it from the template.
 
 ### SK-23 Least-privilege access
 **As an** operations engineer, **I need** each function to have only the permissions it uses, **so that** a bug in one part cannot read or change everything.
 
-Enabler · Must · 2 points · M4 · Planned · Depends on: SK-21, SK-22
+Enabler · Must · 2 points · M4 · Built, deploy check pending · Depends on: SK-21, SK-22
 
 - **Given** the API function's role, **when** it tries to read a raw file, **then** access is denied; it can only write upload records and create pre-signed URLs.
 - **Given** the worker's role, **when** it is reviewed, **then** it can read raw files and write results but cannot read signing keys.
 - **Given** the signing keys, **when** a function starts, **then** it reads them from SSM Parameter Store, not from code or plain environment variables.
+- **Given** `STRESSKIT_BACKEND=aws`, **when** the SSM prefix is missing or the secrets are the public demo ones, **then** the API refuses to start.
+
+Evidence: `test_api_cannot_read_recordings_and_worker_cannot_read_secrets`, `test_no_wildcard_actions_or_resources`, `test_secrets_are_read_from_ssm`, `test_missing_ssm_parameters_fail_at_startup`, `test_aws_refuses_to_start_without_ssm`, `test_aws_refuses_the_public_demo_secrets_even_from_ssm`. The roles are attached to the Lambda functions in milestone 5 (SK-24, SK-25).
 
 ### SK-24 Public HTTPS API on AWS
 **As an** operations engineer, **I need** the API served by API Gateway and Lambda, **so that** customer developers reach the same contract at a public HTTPS address (enables E1 to E5 on AWS).
